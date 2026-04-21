@@ -1,0 +1,134 @@
+/**
+ * Accordion CSS Module
+ */
+
+.accordion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.accordionItem {
+  border: 2px solid var(--color-gray-200);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: var(--transition-base);
+  background: white;
+}
+
+.accordionItem.open {
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+}
+
+.accordionButton {
+  width: 100%;
+  padding: clamp(16px, 3vw, 24px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: var(--transition-fast);
+}
+
+.accordionButton:hover {
+  background: var(--color-gray-50);
+}
+
+.accordionItem.open .accordionButton {
+  background: var(--color-primary);
+  color: white;
+}
+
+.question {
+  font-size: clamp(16px, 2.5vw, 18px);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-normal);
+  flex: 1;
+  padding-right: var(--spacing-md);
+}
+
+.icon {
+  font-size: clamp(20px, 3vw, 24px);
+  font-weight: var(--font-weight-bold);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--color-gray-100);
+  transition: var(--transition-base);
+}
+
+.accordionItem.open .icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  transform: rotate(180deg);
+}
+
+.accordionContent {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.accordionItem.open .accordionContent {
+  max-height: 1000px;
+}
+
+.answer {
+  padding: 0 clamp(16px, 3vw, 24px) clamp(16px, 3vw, 24px);
+  font-size: clamp(14px, 2vw, 16px);
+  line-height: var(--line-height-relaxed);
+  color: var(--color-gray-700);
+}
+
+.answer p {
+  margin-bottom: var(--spacing-md);
+}
+
+.answer p:last-child {
+  margin-bottom: 0;
+}
+
+.answer ul,
+.answer ol {
+  margin-left: var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
+}
+
+.answer li {
+  margin-bottom: var(--spacing-sm);
+}
+
+.answer strong {
+  color: var(--color-primary);
+  font-weight: var(--font-weight-bold);
+}
+
+.answer code {
+  padding: 2px 6px;
+  background: var(--color-gray-100);
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+/* Focus State */
+.accordionButton:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: -3px;
+}
+
+/* Accessibilité */
+@media (prefers-reduced-motion: reduce) {
+  .accordionContent,
+  .icon,
+  .accordionItem {
+    transition: none;
+  }
+}

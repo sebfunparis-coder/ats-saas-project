@@ -1,0 +1,87 @@
+/**
+ * FeaturesPage CSS Module - Styles Responsives
+ */
+
+/* Main Section */
+.mainSection {
+  padding-top: 100px;
+  min-height: 100vh;
+  background: linear-gradient(180deg, #FFFFFF 0%, #FCE7F3 25%, #F3E8FF 50%, #E9D5FF 75%, #DDD6FE 100%);
+  padding: clamp(80px, 12vw, 140px) clamp(24px, 4vw, 60px);
+}
+
+.container {
+  max-width: var(--container-2xl);
+  margin: 0 auto;
+}
+
+/* Header Section */
+.header {
+  text-align: center;
+  margin-bottom: clamp(48px, 8vw, 80px);
+}
+
+.title {
+  font-size: clamp(32px, 6vw, 72px);
+  font-weight: var(--font-weight-black);
+  margin-bottom: clamp(16px, 3vw, 32px);
+  background: linear-gradient(135deg, #667EEA 0%, #764BA2 33%, #FF6B9D 66%, #C471F5 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: var(--line-height-tight);
+}
+
+.subtitle {
+  font-size: clamp(16px, 2.5vw, 24px);
+  color: var(--color-gray-600);
+}
+
+/* Features Grid */
+.featuresGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: clamp(32px, 5vw, 60px);
+  margin-bottom: clamp(48px, 8vw, 80px);
+}
+
+@media (max-width: 768px) {
+  .featuresGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* CTA Section */
+.ctaSection {
+  text-align: center;
+}
+
+.ctaButton {
+  padding: clamp(16px, 2vw, 20px) clamp(32px, 4vw, 48px);
+  background: linear-gradient(135deg, #667EEA 0%, #764BA2 25%, #FF6B9D 75%, #C471F5 100%);
+  color: white;
+  border: none;
+  border-radius: var(--radius-xl);
+  cursor: pointer;
+  font-weight: var(--font-weight-extrabold);
+  font-size: clamp(16px, 2vw, 20px);
+  box-shadow: 0 12px 40px rgba(255, 107, 157, 0.4);
+  transition: var(--transition-base);
+}
+
+.ctaButton:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 48px rgba(255, 107, 157, 0.6);
+}
+
+/* Accessibilité */
+@media (prefers-reduced-motion: reduce) {
+  .ctaButton {
+    animation: none;
+    transition: none;
+  }
+
+  .ctaButton:hover {
+    transform: none;
+  }
+}

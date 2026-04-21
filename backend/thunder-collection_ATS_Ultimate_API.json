@@ -1,0 +1,454 @@
+{
+  "client": "Thunder Client",
+  "collectionName": "ATS Ultimate API",
+  "dateExported": "2026-02-19",
+  "version": "1.1",
+  "folders": [
+    {
+      "name": "Auth",
+      "requests": [
+        {
+          "name": "Register",
+          "method": "POST",
+          "url": "http://localhost:5000/api/auth/register",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"Password123!\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"company\": \"Test Corporation\",\n  \"plan\": \"Starter\"\n}"
+          },
+          "tests": []
+        },
+        {
+          "name": "Login",
+          "method": "POST",
+          "url": "http://localhost:5000/api/auth/login",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"Password123!\"\n}"
+          },
+          "tests": []
+        },
+        {
+          "name": "Get Current User",
+          "method": "GET",
+          "url": "http://localhost:5000/api/auth/me",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            }
+          ],
+          "tests": []
+        },
+        {
+          "name": "Update Profile",
+          "method": "PUT",
+          "url": "http://localhost:5000/api/auth/profile",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe Updated\",\n  \"phone\": \"+33 6 12 34 56 78\"\n}"
+          },
+          "tests": []
+        },
+        {
+          "name": "Change Password",
+          "method": "PUT",
+          "url": "http://localhost:5000/api/auth/password",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"currentPassword\": \"Password123!\",\n  \"newPassword\": \"NewPassword123!\"\n}"
+          },
+          "tests": []
+        },
+        {
+          "name": "Logout",
+          "method": "POST",
+          "url": "http://localhost:5000/api/auth/logout",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            }
+          ],
+          "tests": []
+        }
+      ]
+    },
+    {
+      "name": "Missions",
+      "requests": [
+        {
+          "name": "Get All Missions",
+          "method": "GET",
+          "url": "http://localhost:5000/api/missions?limit=50&skip=0&sortBy=createdAt&sortOrder=desc",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            }
+          ],
+          "tests": []
+        },
+        {
+          "name": "Get Mission Stats",
+          "method": "GET",
+          "url": "http://localhost:5000/api/missions/stats",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            }
+          ],
+          "tests": []
+        },
+        {
+          "name": "Get Mission by ID",
+          "method": "GET",
+          "url": "http://localhost:5000/api/missions/{{missionId}}",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            }
+          ],
+          "tests": []
+        },
+        {
+          "name": "Create Mission",
+          "method": "POST",
+          "url": "http://localhost:5000/api/missions",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"title\": \"Développeur Full Stack Senior\",\n  \"description\": \"Nous recherchons un développeur full stack expérimenté pour rejoindre notre équipe.\",\n  \"company\": \"Tech Corp\",\n  \"department\": \"IT\",\n  \"location\": \"Paris, France\",\n  \"contract\": \"CDI\",\n  \"remote\": \"Hybride\",\n  \"salary\": {\n    \"min\": 50000,\n    \"max\": 70000,\n    \"currency\": \"EUR\"\n  },\n  \"skills\": [\"JavaScript\", \"React\", \"Node.js\", \"MongoDB\"],\n  \"status\": \"draft\"\n}"
+          },
+          "tests": []
+        },
+        {
+          "name": "Update Mission",
+          "method": "PUT",
+          "url": "http://localhost:5000/api/missions/{{missionId}}",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"title\": \"Développeur Full Stack Senior (Updated)\",\n  \"status\": \"active\"\n}"
+          },
+          "tests": []
+        },
+        {
+          "name": "Publish Mission",
+          "method": "POST",
+          "url": "http://localhost:5000/api/missions/{{missionId}}/publish",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            }
+          ],
+          "tests": []
+        },
+        {
+          "name": "Close Mission",
+          "method": "POST",
+          "url": "http://localhost:5000/api/missions/{{missionId}}/close",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            }
+          ],
+          "tests": []
+        },
+        {
+          "name": "Delete Mission",
+          "method": "DELETE",
+          "url": "http://localhost:5000/api/missions/{{missionId}}",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            }
+          ],
+          "tests": []
+        }
+      ]
+    },
+    {
+      "name": "Candidates",
+      "requests": [
+        {
+          "name": "Get All Candidates",
+          "method": "GET",
+          "url": "http://localhost:5000/api/candidates?limit=50&skip=0",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            }
+          ],
+          "tests": []
+        },
+        {
+          "name": "Get Candidate Stats",
+          "method": "GET",
+          "url": "http://localhost:5000/api/candidates/stats",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            }
+          ],
+          "tests": []
+        },
+        {
+          "name": "Create Candidate",
+          "method": "POST",
+          "url": "http://localhost:5000/api/candidates",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"firstName\": \"Marie\",\n  \"lastName\": \"Dupont\",\n  \"email\": \"marie.dupont@example.com\",\n  \"phone\": \"+33 6 12 34 56 78\",\n  \"position\": \"Développeur Full Stack\",\n  \"experience\": 5,\n  \"experienceLevel\": \"Confirmé\",\n  \"location\": \"Paris\",\n  \"skills\": [\"JavaScript\", \"React\", \"Node.js\"],\n  \"availability\": \"1 mois\",\n  \"status\": \"new\"\n}"
+          },
+          "tests": []
+        },
+        {
+          "name": "Update Candidate Status",
+          "method": "PUT",
+          "url": "http://localhost:5000/api/candidates/{{candidateId}}/status",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"status\": \"qualified\"\n}"
+          },
+          "tests": []
+        },
+        {
+          "name": "Rate Candidate",
+          "method": "PUT",
+          "url": "http://localhost:5000/api/candidates/{{candidateId}}/rating",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"rating\": 4.5\n}"
+          },
+          "tests": []
+        }
+      ]
+    },
+    {
+      "name": "Applications (Pipeline)",
+      "requests": [
+        {
+          "name": "Get Pipeline Data",
+          "method": "GET",
+          "url": "http://localhost:5000/api/applications/pipeline",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            }
+          ],
+          "tests": []
+        },
+        {
+          "name": "Get Application Stats",
+          "method": "GET",
+          "url": "http://localhost:5000/api/applications/stats",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            }
+          ],
+          "tests": []
+        },
+        {
+          "name": "Create Application",
+          "method": "POST",
+          "url": "http://localhost:5000/api/applications",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"missionId\": \"{{missionId}}\",\n  \"candidateId\": \"{{candidateId}}\",\n  \"coverLetter\": \"Je suis très intéressé par ce poste...\",\n  \"salaryExpectation\": 55000\n}"
+          },
+          "tests": []
+        },
+        {
+          "name": "Update Application Status (Kanban)",
+          "method": "PUT",
+          "url": "http://localhost:5000/api/applications/{{applicationId}}/status",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"status\": \"interview\"\n}"
+          },
+          "tests": []
+        },
+        {
+          "name": "Add Interview",
+          "method": "POST",
+          "url": "http://localhost:5000/api/applications/{{applicationId}}/interview",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"type\": \"video\",\n  \"scheduledAt\": \"2026-02-25T10:00:00Z\",\n  \"notes\": \"Entretien technique avec l'équipe\"\n}"
+          },
+          "tests": []
+        },
+        {
+          "name": "Hire Candidate",
+          "method": "POST",
+          "url": "http://localhost:5000/api/applications/{{applicationId}}/hire",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{token}}"
+            }
+          ],
+          "tests": []
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "requests": [
+        {
+          "name": "API Health Check",
+          "method": "GET",
+          "url": "http://localhost:5000/api/health",
+          "headers": [],
+          "tests": []
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": "{{token}}"
+  },
+  "environments": [
+    {
+      "name": "Development",
+      "variables": {
+        "baseUrl": "http://localhost:5000",
+        "token": "",
+        "missionId": "",
+        "candidateId": "",
+        "applicationId": ""
+      }
+    },
+    {
+      "name": "Production",
+      "variables": {
+        "baseUrl": "https://your-production-api.com",
+        "token": "",
+        "missionId": "",
+        "candidateId": "",
+        "applicationId": ""
+      }
+    }
+  ]
+}

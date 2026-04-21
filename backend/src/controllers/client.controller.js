@@ -1,0 +1,588 @@
+/**
+ * 🤝 Client Controller
+ *
+ * Gère les clients (entreprises clientes) : CRUD, contacts, missions
+ */
+
+import Client from '../models/Client.model.js';
+import Mission from '../models/Mission.model.js';
+import { validationResult } from 'express-validator';
+
+/**
+ * Custom error class
+ */
+class AppError extends Error {
+  constructor(message, statusCode) {
+    super(message);
+    this.statusCode = statusCode;
+    this.isOperational = true;
+  }
+}
+
+// ===== CONTROLLERS =====
+
+/**
+ * GET /api/clients
+ * Liste tous les clients (avec pagination, filtres, recherche)
+ */
+export const getAllClients = async (req, res, next) => {
+  try {
+    const { companyId } = req.user;
+    const {
+      status,
+      type,
+      industry,
+      search,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+      limit = 50,
+      skip = 0
+    } = req.query;
+
+    // Construire le filtre
+    const filter = { companyId };
+
+    if (status) {
+      filter.status = status;
+    }
+
+    if (type) {
+      filter.type = type;
+    }
+
+    if (industry) {
+      filter.industry = new RegExp(industry, 'i');
+    }
+
+    // Recherche texte (full-text search)
+    if (search) {
+      filter.$text = { $search: search };
+    }
+
+    // Construire le tri
+    const sort = {};
+    sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
+
+    // Exécuter la requête
+    const clients = await Client.find(filter)
+      .sort(sort)
+      .limit(parseInt(limit))
+      .skip(parseInt(skip))
+      .populate('createdBy', 'firstName lastName email')
+      .populate({
+        path: 'missionIds',
+        select: 'title status contract createdAt',
+        options: { limit: 5, sort: { createdAt: -1 } }
+      })
+      .lean();
+
+    // Compter le total
+    const total = await Client.countDocuments(filter);
+
+    res.json({
+      success: true,
+      data: clients,
+      pagination: {
+        total,
+        limit: parseInt(limit),
+        skip: parseInt(skip),
+        hasMore: parseInt(skip) + parseInt(limit) < total
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/clients/:id
+ * Récupérer un client par ID
+ */
+export const getClientById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { companyId } = req.user;
+
+    const client = await Client.findOne({ _id: id, companyId })
+      .populate('createdBy', 'firstName lastName email avatar')
+      .populate({
+        path: 'missionIds',
+        select: 'title status contract location salary createdAt publishedAt',
+        populate: {
+          path: 'createdBy',
+          select: 'firstName lastName'
+        }
+      })
+      .lean();
+
+    if (!client) {
+      throw new AppError('Client non trouvé', 404);
+    }
+
+    res.json({
+      success: true,
+      data: client
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/clients
+ * Créer un nouveau client
+ */
+export const createClient = async (req, res, next) => {
+  try {
+    // Validation
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
+      });
+    }
+
+    const { companyId, id: userId } = req.user;
+
+    const clientData = {
+      ...req.body,
+      companyId,
+      createdBy: userId,
+      status: req.body.status || 'lead'
+    };
+
+    const client = await Client.create(clientData);
+
+    res.status(201).json({
+      success: true,
+      data: client
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PUT /api/clients/:id
+ * Mettre à jour un client
+ */
+export const updateClient = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { companyId } = req.user;
+
+    // Validation
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
+      });
+    }
+
+    // Trouver le client
+    const client = await Client.findOne({ _id: id, companyId });
+
+    if (!client) {
+      throw new AppError('Client non trouvé', 404);
+    }
+
+    // Champs autorisés à la modification
+    const allowedFields = [
+      'name',
+      'type',
+      'industry',
+      'website',
+      'description',
+      'email',
+      'phone',
+      'address',
+      'status',
+      'source',
+      'notes',
+      'tags'
+    ];
+
+    // Mettre à jour uniquement les champs autorisés
+    allowedFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        client[field] = req.body[field];
+      }
+    });
+
+    await client.save();
+
+    res.json({
+      success: true,
+      data: client
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/clients/:id
+ * Supprimer un client
+ */
+export const deleteClient = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { companyId } = req.user;
+
+    const client = await Client.findOne({ _id: id, companyId });
+
+    if (!client) {
+      throw new AppError('Client non trouvé', 404);
+    }
+
+    // Vérifier si des missions existent
+    if (client.missionIds && client.missionIds.length > 0) {
+      throw new AppError(
+        `Impossible de supprimer ce client car ${client.missionIds.length} mission(s) y sont associées`,
+        400
+      );
+    }
+
+    await client.deleteOne();
+
+    res.json({
+      success: true,
+      message: 'Client supprimé avec succès'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PUT /api/clients/:id/status
+ * Mettre à jour le statut d'un client
+ */
+export const updateClientStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    const { companyId } = req.user;
+
+    if (!status) {
+      throw new AppError('Le statut est requis', 400);
+    }
+
+    const validStatuses = ['lead', 'prospect', 'active', 'inactive'];
+    if (!validStatuses.includes(status)) {
+      throw new AppError('Statut invalide', 400);
+    }
+
+    const client = await Client.findOne({ _id: id, companyId });
+
+    if (!client) {
+      throw new AppError('Client non trouvé', 404);
+    }
+
+    // Utiliser la méthode du model
+    await client.updateStatus(status);
+
+    res.json({
+      success: true,
+      data: client,
+      message: 'Statut mis à jour avec succès'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/clients/:id/contact
+ * Ajouter un contact à un client
+ */
+export const addContact = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { companyId } = req.user;
+    const { name, role, email, phone, isPrimary } = req.body;
+
+    if (!name || !email) {
+      throw new AppError('Nom et email du contact sont requis', 400);
+    }
+
+    const client = await Client.findOne({ _id: id, companyId });
+
+    if (!client) {
+      throw new AppError('Client non trouvé', 404);
+    }
+
+    const contactData = {
+      name,
+      role,
+      email,
+      phone,
+      isPrimary: isPrimary || false
+    };
+
+    // Utiliser la méthode du model
+    await client.addContact(contactData);
+
+    res.status(201).json({
+      success: true,
+      data: client,
+      message: 'Contact ajouté avec succès'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/clients/:id/contact/:contactId
+ * Retirer un contact d'un client
+ */
+export const removeContact = async (req, res, next) => {
+  try {
+    const { id, contactId } = req.params;
+    const { companyId } = req.user;
+
+    const client = await Client.findOne({ _id: id, companyId });
+
+    if (!client) {
+      throw new AppError('Client non trouvé', 404);
+    }
+
+    // Utiliser la méthode du model
+    await client.removeContact(contactId);
+
+    res.json({
+      success: true,
+      data: client,
+      message: 'Contact retiré avec succès'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PUT /api/clients/:id/contact/:contactId
+ * Mettre à jour un contact
+ */
+export const updateContact = async (req, res, next) => {
+  try {
+    const { id, contactId } = req.params;
+    const { companyId } = req.user;
+    const { name, role, email, phone, isPrimary } = req.body;
+
+    const client = await Client.findOne({ _id: id, companyId });
+
+    if (!client) {
+      throw new AppError('Client non trouvé', 404);
+    }
+
+    const contact = client.contacts.id(contactId);
+
+    if (!contact) {
+      throw new AppError('Contact non trouvé', 404);
+    }
+
+    if (name) contact.name = name;
+    if (role) contact.role = role;
+    if (email) contact.email = email;
+    if (phone) contact.phone = phone;
+    if (isPrimary !== undefined) contact.isPrimary = isPrimary;
+
+    await client.save();
+
+    res.json({
+      success: true,
+      data: client,
+      message: 'Contact mis à jour avec succès'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/clients/:id/missions
+ * Récupérer toutes les missions d'un client
+ */
+export const getClientMissions = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { companyId } = req.user;
+    const { status, limit = 50, skip = 0 } = req.query;
+
+    // Vérifier que le client existe
+    const client = await Client.findOne({ _id: id, companyId });
+
+    if (!client) {
+      throw new AppError('Client non trouvé', 404);
+    }
+
+    const filter = {
+      _id: { $in: client.missionIds },
+      companyId
+    };
+
+    if (status) {
+      filter.status = status;
+    }
+
+    const missions = await Mission.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(skip))
+      .populate('createdBy', 'firstName lastName')
+      .lean();
+
+    const total = await Mission.countDocuments(filter);
+
+    res.json({
+      success: true,
+      data: missions,
+      pagination: {
+        total,
+        limit: parseInt(limit),
+        skip: parseInt(skip),
+        hasMore: parseInt(skip) + parseInt(limit) < total
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/clients/:id/mission/:missionId
+ * Associer une mission à un client
+ */
+export const linkMission = async (req, res, next) => {
+  try {
+    const { id, missionId } = req.params;
+    const { companyId } = req.user;
+
+    const client = await Client.findOne({ _id: id, companyId });
+
+    if (!client) {
+      throw new AppError('Client non trouvé', 404);
+    }
+
+    const mission = await Mission.findOne({ _id: missionId, companyId });
+
+    if (!mission) {
+      throw new AppError('Mission non trouvée', 404);
+    }
+
+    // Utiliser la méthode du model
+    await client.addMission(missionId);
+
+    res.json({
+      success: true,
+      data: client,
+      message: 'Mission associée avec succès'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/clients/:id/mission/:missionId
+ * Dissocier une mission d'un client
+ */
+export const unlinkMission = async (req, res, next) => {
+  try {
+    const { id, missionId } = req.params;
+    const { companyId } = req.user;
+
+    const client = await Client.findOne({ _id: id, companyId });
+
+    if (!client) {
+      throw new AppError('Client non trouvé', 404);
+    }
+
+    // Utiliser la méthode du model
+    await client.removeMission(missionId);
+
+    res.json({
+      success: true,
+      data: client,
+      message: 'Mission dissociée avec succès'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/clients/stats
+ * Statistiques clients pour dashboard
+ */
+export const getClientStats = async (req, res, next) => {
+  try {
+    const { companyId } = req.user;
+
+    const stats = await Client.aggregate([
+      { $match: { companyId } },
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const total = await Client.countDocuments({ companyId });
+    const leads = await Client.countDocuments({ companyId, status: 'lead' });
+    const prospects = await Client.countDocuments({ companyId, status: 'prospect' });
+    const active = await Client.countDocuments({ companyId, status: 'active' });
+
+    // Clients ajoutés ce mois
+    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const thisMonth = await Client.countDocuments({
+      companyId,
+      createdAt: { $gte: startOfMonth }
+    });
+
+    // Top industries
+    const topIndustries = await Client.aggregate([
+      { $match: { companyId } },
+      { $group: { _id: '$industry', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 5 }
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        total,
+        leads,
+        prospects,
+        active,
+        thisMonth,
+        byStatus: stats,
+        topIndustries
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Export default pour compatibilité
+export default {
+  getAllClients,
+  getClientById,
+  createClient,
+  updateClient,
+  deleteClient,
+  updateClientStatus,
+  addContact,
+  removeContact,
+  updateContact,
+  getClientMissions,
+  linkMission,
+  unlinkMission,
+  getClientStats
+};

@@ -1,0 +1,17 @@
+# robots.txt pour ATS Ultimate
+# https://ats-ultimate.com/robots.txt
+
+# Autoriser tous les robots
+User-agent: *
+Allow: /
+
+# Pages à ne pas indexer (si nécessaire)
+Disallow: /app/
+Disallow: /superadmin/
+Disallow: /admin-login
+
+# Sitemap
+Sitemap: https://ats-ultimate.com/sitemap.xml
+
+# Crawl-delay (optionnel, pour éviter la surcharge)
+# Crawl-delay: 1

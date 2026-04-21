@@ -1,0 +1,182 @@
+/**
+ * Mixins CSS - Media Queries & Utilitaires Réutilisables
+ */
+
+/* Container responsive */
+.container {
+  width: 100%;
+  max-width: var(--container-2xl);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--spacing-xl);
+  padding-right: var(--spacing-xl);
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding-left: var(--spacing-lg);
+    padding-right: var(--spacing-lg);
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding-left: var(--spacing-md);
+    padding-right: var(--spacing-md);
+  }
+}
+
+/* Grids responsives */
+.grid-3-cols {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-2xl);
+}
+
+@media (max-width: 1024px) {
+  .grid-3-cols {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .grid-3-cols {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-xl);
+  }
+}
+
+.grid-2-cols {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-2xl);
+}
+
+@media (max-width: 768px) {
+  .grid-2-cols {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-xl);
+  }
+}
+
+.grid-4-cols {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-2xl);
+}
+
+@media (max-width: 1024px) {
+  .grid-4-cols {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .grid-4-cols {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-xl);
+  }
+}
+
+/* Typographie responsive */
+.heading-hero {
+  font-size: clamp(32px, 5vw, 72px);
+  font-weight: var(--font-weight-black);
+  line-height: var(--line-height-tight);
+}
+
+.heading-xl {
+  font-size: clamp(24px, 4vw, 56px);
+  font-weight: var(--font-weight-black);
+  line-height: var(--line-height-tight);
+}
+
+.heading-lg {
+  font-size: clamp(20px, 3vw, 32px);
+  font-weight: var(--font-weight-extrabold);
+}
+
+.heading-md {
+  font-size: clamp(18px, 2.5vw, 24px);
+  font-weight: var(--font-weight-bold);
+}
+
+.text-lg {
+  font-size: clamp(16px, 2vw, 20px);
+}
+
+.text-md {
+  font-size: clamp(14px, 1.5vw, 16px);
+}
+
+/* Sections responsive */
+.section-padding {
+  padding-top: clamp(60px, 10vw, 140px);
+  padding-bottom: clamp(60px, 10vw, 140px);
+}
+
+.section-padding-sm {
+  padding-top: clamp(40px, 6vw, 80px);
+  padding-bottom: clamp(40px, 6vw, 80px);
+}
+
+/* Utilitaires d'affichage responsive */
+.hide-mobile {
+  display: block;
+}
+
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none;
+  }
+}
+
+.hide-desktop {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .hide-desktop {
+    display: block;
+  }
+}
+
+/* Hover effects (désactivés sur mobile) */
+@media (hover: hover) and (pointer: fine) {
+  .hover-lift:hover {
+    transform: translateY(-8px);
+  }
+
+  .hover-scale:hover {
+    transform: scale(1.05);
+  }
+}
+
+/* Focus visible (accessibilité) */
+*:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
