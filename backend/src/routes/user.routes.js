@@ -50,7 +50,7 @@ router.post('/', validateUser, userController.createUser);
  * PUT /api/users/:id
  * Mettre à jour un utilisateur
  */
-router.put('/:id', validateMongoId, userController.updateUser);
+router.put('/:id', validateMongoId, validateUser, userController.updateUser);
 
 /**
  * DELETE /api/users/:id

@@ -38,11 +38,11 @@ const applicationSchema = new mongoose.Schema({
     required: true
   },
 
-  // Statut pipeline
+  // Statut pipeline (synchronisé avec les colonnes Kanban frontend)
   status: {
     type: String,
-    enum: ['applied', 'screening', 'interview', 'offer', 'hired', 'rejected'],
-    default: 'applied',
+    enum: ['received', 'applied', 'screening', 'interview_1', 'interview_2', 'interview', 'offer', 'final', 'hired', 'rejected', 'archived'],
+    default: 'received',
     required: true,
     index: true
   },
@@ -93,7 +93,7 @@ const applicationSchema = new mongoose.Schema({
   interviews: [{
     type: {
       type: String,
-      enum: ['phone', 'video', 'onsite', 'technical'],
+      enum: ['interview', 'call', 'meeting', 'other'],
       required: true
     },
     scheduledAt: {
@@ -161,7 +161,32 @@ const applicationSchema = new mongoose.Schema({
     ref: 'Company',
     required: [true, 'La candidature doit être liée à une entreprise'],
     index: true
-  }
+  },
+
+  // Scoring IA
+  aiScore: { type: Number, min: 0, max: 100, default: null },
+  aiScoreStatus: { type: String, enum: ['pending', 'done', 'error'], default: null },
+  aiScoreAt: { type: Date, default: null },
+  aiScoreDetails: {
+    skillsMatch: { type: Number, min: 0, max: 100 },
+    experienceMatch: { type: Number, min: 0, max: 100 },
+    locationMatch: { type: Number, min: 0, max: 100 },
+    salaryMatch: { type: Number, min: 0, max: 100 },
+    justification: { type: String },
+    strengths: [{ type: String }],
+    concerns: [{ type: String }],
+  },
+
+  // Source de la candidature (pour analytics)
+  source: {
+    type: String,
+    enum: ['LinkedIn', 'Indeed', 'Site web', 'Referral', 'CVthèque', 'Spontanée', 'Autre'],
+    default: null
+  },
+
+  // Soft delete
+  isDeleted: { type: Boolean, default: false, index: true },
+  deletedAt: { type: Date, default: null }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -170,14 +195,17 @@ const applicationSchema = new mongoose.Schema({
 
 // ===== INDEXES =====
 
-// Index composé pour multi-tenant
+// Multi-tenant + status (pipeline kanban)
 applicationSchema.index({ companyId: 1, status: 1 });
+
+// Lookup par mission (getMissionApplications)
+applicationSchema.index({ companyId: 1, missionId: 1 });
+
+// Lookup par candidat (getCandidateApplications)
+applicationSchema.index({ companyId: 1, candidateId: 1 });
 
 // Index unique (un candidat ne peut postuler qu'une fois à une mission)
 applicationSchema.index({ missionId: 1, candidateId: 1 }, { unique: true });
-
-// Index sur companyId et status
-applicationSchema.index({ companyId: 1, status: 1 });
 
 // Index sur dates
 applicationSchema.index({ appliedAt: -1 });
@@ -284,6 +312,18 @@ applicationSchema.methods.makeOffer = async function(userId) {
   this.updatedBy = userId;
   await this.save();
 };
+
+// ===== SOFT DELETE MIDDLEWARE =====
+
+const softDeleteFilter = function(next) {
+  if (!this.options.includeDeleted) {
+    this.where({ isDeleted: { $ne: true } });
+  }
+  next();
+};
+
+applicationSchema.pre(/^find/, softDeleteFilter);
+applicationSchema.pre('countDocuments', softDeleteFilter);
 
 // ===== EXPORT =====
 

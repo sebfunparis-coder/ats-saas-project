@@ -1,0 +1,251 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "missions": "Missions",
+    "candidates": "Candidats",
+    "pipeline": "Pipeline",
+    "cvtheque": "CVthèque",
+    "calendar": "Agenda",
+    "team": "Équipe",
+    "clients": "Clients",
+    "admin": "Administration",
+    "analytics": "Analytiques",
+    "tasks": "Tâches",
+    "history": "Historique",
+    "superadmin": "Super Admin"
+  },
+  "sidebar": {
+    "collapse": "Réduire",
+    "expand": "Agrandir",
+    "logout": "Déconnexion",
+    "freeTrial": "Aucun plan",
+    "daysLeft": "{{count}} jour restant",
+    "upgrade": "Passer à Pro"
+  },
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "add": "Ajouter",
+    "search": "Rechercher",
+    "filter": "Filtrer",
+    "export": "Exporter",
+    "loading": "Chargement…",
+    "error": "Une erreur est survenue",
+    "success": "Opération réussie",
+    "confirm": "Confirmer",
+    "close": "Fermer",
+    "noData": "Aucun résultat",
+    "actions": "Actions",
+    "status": "Statut",
+    "date": "Date",
+    "name": "Nom",
+    "email": "Email",
+    "phone": "Téléphone",
+    "required": "obligatoire",
+    "optional": "optionnel",
+    "view": "Voir",
+    "create": "Créer",
+    "update": "Mettre à jour",
+    "back": "Retour",
+    "next": "Suivant",
+    "previous": "Précédent",
+    "submit": "Envoyer",
+    "import": "Importer",
+    "download": "Télécharger",
+    "copy": "Copier",
+    "share": "Partager",
+    "preview": "Aperçu",
+    "refresh": "Actualiser",
+    "today": "Aujourd'hui",
+    "all": "Tous",
+    "none": "Aucun",
+    "yes": "Oui",
+    "no": "Non"
+  },
+  "auth": {
+    "login": {
+      "title": "Connexion",
+      "subtitle": "Bienvenue sur ATS Ultimate",
+      "email": "Email professionnel",
+      "password": "Mot de passe",
+      "submit": "Se connecter",
+      "forgotPassword": "Mot de passe oublié ?",
+      "noAccount": "Pas encore de compte ?",
+      "register": "Créer un compte",
+      "demoTitle": "Comptes de démonstration",
+      "demoHint": "Cliquez pour pré-remplir",
+      "loading": "Connexion en cours…",
+      "error": "Email ou mot de passe incorrect"
+    },
+    "register": {
+      "title": "Créer votre compte",
+      "subtitle": "Sans engagement • Annulation à tout moment",
+      "firstName": "Prénom",
+      "lastName": "Nom",
+      "email": "Email professionnel",
+      "company": "Nom de l'entreprise",
+      "password": "Mot de passe",
+      "confirmPassword": "Confirmer le mot de passe",
+      "submit": "Créer mon compte",
+      "hasAccount": "Déjà un compte ?",
+      "login": "Se connecter",
+      "terms": "En créant un compte, j'accepte les",
+      "termsLink": "CGU",
+      "privacy": "et la",
+      "privacyLink": "politique de confidentialité",
+      "loading": "Création en cours…"
+    },
+    "forgotPassword": {
+      "title": "Mot de passe oublié",
+      "subtitle": "Entrez votre email pour recevoir un lien de réinitialisation",
+      "email": "Votre email",
+      "submit": "Envoyer le lien",
+      "back": "Retour à la connexion",
+      "success": "Email envoyé ! Vérifiez votre boîte mail."
+    },
+    "mfa": {
+      "title": "Vérification en 2 étapes",
+      "subtitle": "Entrez le code de votre application d'authentification",
+      "code": "Code à 6 chiffres",
+      "submit": "Vérifier",
+      "backupCode": "Utiliser un code de récupération",
+      "loading": "Vérification…"
+    }
+  },
+  "analytics": {
+    "title": "Analytiques",
+    "subtitle": "Visualisez vos performances de recrutement",
+    "period": "Période",
+    "periods": {
+      "7d": "7 derniers jours",
+      "30d": "30 derniers jours",
+      "90d": "90 derniers jours",
+      "all": "Tout"
+    },
+    "overview": {
+      "totalApplications": "Candidatures totales",
+      "hired": "Embauches",
+      "conversionRate": "Taux de conversion",
+      "avgTimeToHire": "Délai moyen (jours)"
+    },
+    "funnel": "Entonnoir de recrutement",
+    "sources": "Sources de candidatures",
+    "topMissions": "Top missions",
+    "recruiters": "Activité des recruteurs",
+    "exportPDF": "Exporter PDF"
+  },
+  "missions": {
+    "title": "Missions",
+    "new": "Nouvelle mission",
+    "status": {
+      "open": "Ouverte",
+      "closed": "Fermée",
+      "filled": "Pourvue",
+      "paused": "En pause",
+      "draft": "Brouillon",
+      "pending_approval": "En attente de validation"
+    },
+    "contract": {
+      "CDI": "CDI",
+      "CDD": "CDD",
+      "Freelance": "Freelance",
+      "Stage": "Stage",
+      "Alternance": "Alternance"
+    },
+    "empty": "Aucune mission pour l'instant",
+    "emptyDesc": "Créez votre première mission pour commencer à recruter.",
+    "create": "+ Créer une mission",
+    "applicants": "candidature(s)"
+  },
+  "candidates": {
+    "title": "Candidats",
+    "new": "Nouveau candidat",
+    "parseCV": "Parser le CV avec l'IA",
+    "parseCVDrop": "Déposez un PDF pour l'analyser automatiquement",
+    "parseCVLoading": "Analyse IA en cours…",
+    "parseCVSuccess": "CV analysé ! Vérifiez et corrigez les informations.",
+    "parseCVError": "Échec de l'analyse IA",
+    "empty": "Aucun candidat pour l'instant",
+    "emptyDesc": "Ajoutez votre premier candidat à votre vivier de talents.",
+    "create": "+ Ajouter un candidat",
+    "status": {
+      "active": "Actif",
+      "passive": "Passif",
+      "not_looking": "Ne cherche pas"
+    }
+  },
+  "pipeline": {
+    "title": "Pipeline",
+    "stages": {
+      "received": "Reçue",
+      "screening": "Présélection",
+      "interview_1": "Entretien 1",
+      "interview_2": "Entretien 2",
+      "offer": "Offre",
+      "final": "Finaliste",
+      "hired": "Recruté",
+      "rejected": "Refusé"
+    },
+    "empty": "Aucune candidature dans le pipeline",
+    "emptyDesc": "Commencez par associer des candidats à une mission ouverte."
+  },
+  "admin": {
+    "title": "Administration",
+    "tabs": {
+      "company": "🏢 Entreprise",
+      "users": "👥 Utilisateurs",
+      "billing": "💳 Facturation",
+      "settings": "⚙️ Paramètres",
+      "emailTemplates": "✉️ Templates Email",
+      "integrations": "🔌 Intégrations",
+      "webhooks": "🔔 Webhooks",
+      "apikeys": "🔑 Clés API",
+      "rgpd": "⚖️ RGPD"
+    }
+  },
+  "marketing": {
+    "hero": {
+      "badge": "🎉 Plateforme ATS #1 en France",
+      "title": "Recrutez les meilleurs talents 10x plus vite ⚡",
+      "subtitle": "Plateforme ATS alimentée par l'IA. Pipeline Kanban, CVthèque intelligente, analytics temps réel. Sans engagement.",
+      "cta": "Démarrer maintenant →",
+      "demo": "Voir la démo"
+    },
+    "nav": {
+      "home": "Accueil",
+      "features": "Fonctionnalités",
+      "pricing": "Tarifs",
+      "blog": "Blog",
+      "demo": "Démo",
+      "nous": "Nous",
+      "login": "Connexion",
+      "start": "Démarrer maintenant"
+    },
+    "pricing": {
+      "title": "Tarifs Transparents",
+      "subtitle": "Choisissez la formule parfaite pour votre équipe",
+      "monthly": "Mensuel",
+      "yearly": "Annuel",
+      "savePercent": "Économisez 20%",
+      "perMonth": "/mois",
+      "perMonthBilled": "/mois (facturé annuellement)",
+      "custom": "Sur mesure",
+      "start": "Démarrer maintenant",
+      "contact": "Nous contacter",
+      "trial": "✓ Sans engagement · ✓ Annulation en 1 clic"
+    },
+    "footer": {
+      "product": "Produit",
+      "legal": "Légal",
+      "company": "Entreprise",
+      "rights": "Tous droits réservés."
+    }
+  },
+  "language": {
+    "fr": "Français",
+    "en": "English",
+    "switch": "Changer de langue"
+  }
+}

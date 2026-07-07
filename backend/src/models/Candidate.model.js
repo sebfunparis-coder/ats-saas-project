@@ -198,7 +198,11 @@ const candidateSchema = new mongoose.Schema({
     ref: 'Company',
     required: [true, 'Le candidat doit être lié à une entreprise'],
     index: true
-  }
+  },
+
+  // Soft delete
+  isDeleted: { type: Boolean, default: false, index: true },
+  deletedAt: { type: Date, default: null }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -244,10 +248,25 @@ candidateSchema.virtual('daysSinceLastContact').get(function() {
 
 // ===== MIDDLEWARE =====
 
-// Pre-save : Update timestamp
+// Pre-save : Update timestamp + track field changes for denormalization sync
 candidateSchema.pre('save', function(next) {
   this.updatedAt = Date.now();
+  this._nameChanged = this.isModified('firstName') || this.isModified('lastName');
   next();
+});
+
+// Post-save : Sync candidateName in all related Applications when name changes
+candidateSchema.post('save', async function() {
+  if (!this._nameChanged) return;
+  try {
+    const fullName = `${this.firstName} ${this.lastName}`.trim();
+    await mongoose.model('Application').updateMany(
+      { candidateId: this._id },
+      { $set: { candidateName: fullName } }
+    );
+  } catch (err) {
+    console.error('[SYNC] Failed to propagate candidate name to applications:', err.message);
+  }
 });
 
 // ===== METHODS =====
@@ -281,6 +300,18 @@ candidateSchema.methods.rate = async function(rating) {
   this.rating = Math.max(0, Math.min(5, rating));
   await this.save();
 };
+
+// ===== SOFT DELETE MIDDLEWARE =====
+
+const softDeleteFilter = function(next) {
+  if (!this.options.includeDeleted) {
+    this.where({ isDeleted: { $ne: true } });
+  }
+  next();
+};
+
+candidateSchema.pre(/^find/, softDeleteFilter);
+candidateSchema.pre('countDocuments', softDeleteFilter);
 
 // ===== EXPORT =====
 

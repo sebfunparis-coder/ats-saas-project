@@ -7,17 +7,9 @@
 import Client from '../models/Client.model.js';
 import Mission from '../models/Mission.model.js';
 import { validationResult } from 'express-validator';
-
-/**
- * Custom error class
- */
-class AppError extends Error {
-  constructor(message, statusCode) {
-    super(message);
-    this.statusCode = statusCode;
-    this.isOperational = true;
-  }
-}
+import { AppError } from '../utils/AppError.js';
+import { successResponse, createdResponse, paginationMeta } from '../utils/response.js';
+import { escapeRegExp } from '../utils/regexHelpers.js';
 
 // ===== CONTROLLERS =====
 
@@ -38,57 +30,36 @@ export const getAllClients = async (req, res, next) => {
       limit = 50,
       skip = 0
     } = req.query;
+    const safeLimit = Math.min(parseInt(limit) || 20, 100);
+    const safeSkip = parseInt(skip) || 0;
 
-    // Construire le filtre
     const filter = { companyId };
 
-    if (status) {
-      filter.status = status;
-    }
+    if (status) filter.status = status;
+    if (type) filter.type = type;
+    // T-366 : échapper les métacaractères regex avant new RegExp() (ReDoS).
+    if (industry) filter.industry = new RegExp(escapeRegExp(industry), 'i');
+    if (search) filter.$text = { $search: search };
 
-    if (type) {
-      filter.type = type;
-    }
-
-    if (industry) {
-      filter.industry = new RegExp(industry, 'i');
-    }
-
-    // Recherche texte (full-text search)
-    if (search) {
-      filter.$text = { $search: search };
-    }
-
-    // Construire le tri
     const sort = {};
     sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
-    // Exécuter la requête
-    const clients = await Client.find(filter)
-      .sort(sort)
-      .limit(parseInt(limit))
-      .skip(parseInt(skip))
-      .populate('createdBy', 'firstName lastName email')
-      .populate({
-        path: 'missionIds',
-        select: 'title status contract createdAt',
-        options: { limit: 5, sort: { createdAt: -1 } }
-      })
-      .lean();
+    const [clients, total] = await Promise.all([
+      Client.find(filter)
+        .sort(sort)
+        .limit(safeLimit)
+        .skip(safeSkip)
+        .populate('createdBy', 'firstName lastName email')
+        .populate({
+          path: 'missionIds',
+          select: 'title status contract createdAt',
+          options: { limit: 5, sort: { createdAt: -1 } }
+        })
+        .lean(),
+      Client.countDocuments(filter)
+    ]);
 
-    // Compter le total
-    const total = await Client.countDocuments(filter);
-
-    res.json({
-      success: true,
-      data: clients,
-      pagination: {
-        total,
-        limit: parseInt(limit),
-        skip: parseInt(skip),
-        hasMore: parseInt(skip) + parseInt(limit) < total
-      }
-    });
+    successResponse(res, clients, '', paginationMeta(total, Math.floor(safeSkip / safeLimit) + 1, safeLimit));
   } catch (error) {
     next(error);
   }
@@ -245,7 +216,9 @@ export const deleteClient = async (req, res, next) => {
       );
     }
 
-    await client.deleteOne();
+    client.isDeleted = true;
+    client.deletedAt = new Date();
+    await client.save();
 
     res.json({
       success: true,
@@ -429,25 +402,20 @@ export const getClientMissions = async (req, res, next) => {
       filter.status = status;
     }
 
-    const missions = await Mission.find(filter)
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .skip(parseInt(skip))
-      .populate('createdBy', 'firstName lastName')
-      .lean();
+    const safeLimit2 = Math.min(parseInt(limit) || 20, 100);
+    const safeSkip2 = parseInt(skip) || 0;
 
-    const total = await Mission.countDocuments(filter);
+    const [missions, total] = await Promise.all([
+      Mission.find(filter)
+        .sort({ createdAt: -1 })
+        .limit(safeLimit2)
+        .skip(safeSkip2)
+        .populate('createdBy', 'firstName lastName')
+        .lean(),
+      Mission.countDocuments(filter)
+    ]);
 
-    res.json({
-      success: true,
-      data: missions,
-      pagination: {
-        total,
-        limit: parseInt(limit),
-        skip: parseInt(skip),
-        hasMore: parseInt(skip) + parseInt(limit) < total
-      }
-    });
+    successResponse(res, missions, '', paginationMeta(total, Math.floor(safeSkip2 / safeLimit2) + 1, safeLimit2));
   } catch (error) {
     next(error);
   }
@@ -570,6 +538,49 @@ export const getClientStats = async (req, res, next) => {
   }
 };
 
+/**
+ * PATCH /api/clients/:id/restore
+ */
+export const restoreClient = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { companyId } = req.user;
+
+    const result = await Client.updateOne(
+      { _id: id, companyId, isDeleted: true },
+      { $set: { isDeleted: false, deletedAt: null } }
+    );
+
+    if (result.matchedCount === 0) {
+      throw new AppError('Client supprimé non trouvé', 404);
+    }
+
+    res.json({ success: true, message: 'Client restauré avec succès' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/clients/:id/purge
+ */
+export const purgeClient = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { companyId } = req.user;
+
+    const result = await Client.deleteOne({ _id: id, companyId, isDeleted: true });
+
+    if (result.deletedCount === 0) {
+      throw new AppError('Client supprimé non trouvé', 404);
+    }
+
+    res.json({ success: true, message: 'Client supprimé définitivement' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Export default pour compatibilité
 export default {
   getAllClients,
@@ -577,6 +588,8 @@ export default {
   createClient,
   updateClient,
   deleteClient,
+  restoreClient,
+  purgeClient,
   updateClientStatus,
   addContact,
   removeContact,

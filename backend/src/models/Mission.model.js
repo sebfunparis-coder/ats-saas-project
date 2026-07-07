@@ -16,12 +16,6 @@ const missionSchema = new mongoose.Schema({
   },
 
   // Company info (denormalized for performance)
-  company: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Company',
-    index: true
-  },
-
   companyName: {
     type: String,
     required: true,
@@ -31,11 +25,27 @@ const missionSchema = new mongoose.Schema({
   // Statut
   status: {
     type: String,
-    enum: ['draft', 'active', 'paused', 'closed'],
+    enum: ['draft', 'pending_approval', 'active', 'paused', 'closed'],
     default: 'active',
     required: true,
     index: true
   },
+
+  // Historique des approbations
+  approvalHistory: [{
+    action: {
+      type: String,
+      enum: ['submitted', 'approved', 'rejected'],
+      required: true,
+    },
+    by: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    byName: { type: String },
+    at: { type: Date, default: Date.now },
+    comment: { type: String, maxlength: 500 },
+  }],
 
   // Type de contrat
   contract: {
@@ -151,7 +161,11 @@ const missionSchema = new mongoose.Schema({
     ref: 'Company',
     required: [true, 'La mission doit être liée à une entreprise'],
     index: true
-  }
+  },
+
+  // Soft delete
+  isDeleted: { type: Boolean, default: false, index: true },
+  deletedAt: { type: Date, default: null }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -203,9 +217,19 @@ missionSchema.virtual('salaryRange').get(function() {
 
 // ===== MIDDLEWARE =====
 
-// Pre-save : Update timestamp
+// Pre-validate : salary.max must be >= salary.min when both are set
+missionSchema.pre('validate', function(next) {
+  const { min, max } = this.salary || {};
+  if (min != null && max != null && max < min) {
+    this.invalidate('salary.max', 'Le salaire maximum doit être supérieur ou égal au minimum', max);
+  }
+  next();
+});
+
+// Pre-save : Update timestamp + track field changes for denormalization sync
 missionSchema.pre('save', function(next) {
   this.updatedAt = Date.now();
+  this._titleChanged = this.isModified('title');
 
   // Set publishedAt if status changes to active and not set
   if (this.isModified('status') && this.status === 'active' && !this.publishedAt) {
@@ -218,6 +242,19 @@ missionSchema.pre('save', function(next) {
   }
 
   next();
+});
+
+// Post-save : Sync missionTitle in all related Applications when title changes
+missionSchema.post('save', async function() {
+  if (!this._titleChanged) return;
+  try {
+    await mongoose.model('Application').updateMany(
+      { missionId: this._id },
+      { $set: { missionTitle: this.title } }
+    );
+  } catch (err) {
+    console.error('[SYNC] Failed to propagate mission title to applications:', err.message);
+  }
 });
 
 // ===== METHODS =====
@@ -254,6 +291,18 @@ missionSchema.methods.close = async function() {
   this.closedAt = Date.now();
   await this.save();
 };
+
+// ===== SOFT DELETE MIDDLEWARE =====
+
+const softDeleteFilter = function(next) {
+  if (!this.options.includeDeleted) {
+    this.where({ isDeleted: { $ne: true } });
+  }
+  next();
+};
+
+missionSchema.pre(/^find/, softDeleteFilter);
+missionSchema.pre('countDocuments', softDeleteFilter);
 
 // ===== EXPORT =====
 

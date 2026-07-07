@@ -6,21 +6,72 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 
-// Stockage en mémoire
-const mockDB = {
-  users: [],
-  companies: [],
-  teamMembers: [],
-  missions: [],
-  candidates: [],
-  applications: []
+const generateId = () => crypto.randomBytes(12).toString('hex');
+
+// Comptes démo pré-seedés
+const demoCompanyId = generateId();
+const demoUserId = generateId();
+
+const demoCompany = {
+  _id: demoCompanyId,
+  name: 'Demo ATS',
+  email: 'contact@demo-ats.fr',
+  plan: 'Pro',
+  userIds: [demoUserId],
+  candidateIds: [],
+  missionIds: [],
+  createdAt: new Date(),
+  updatedAt: new Date(),
 };
 
-/**
- * Génère un ID unique (simule MongoDB ObjectId)
- */
-const generateId = () => {
-  return crypto.randomBytes(12).toString('hex');
+const mockEmail = process.env.MOCK_ADMIN_EMAIL || 'admin@localhost';
+const _generatedPassword = !process.env.MOCK_ADMIN_PASSWORD ? crypto.randomBytes(16).toString('hex') : null;
+const mockPassword = process.env.MOCK_ADMIN_PASSWORD || _generatedPassword;
+
+// Log credentials so the dev knows how to log in (never runs in production)
+if (_generatedPassword) {
+  // eslint-disable-next-line no-console
+  console.log('\x1b[33m[MockDB] No MOCK_ADMIN_PASSWORD set — generated one-time password:\x1b[0m');
+  // eslint-disable-next-line no-console
+  console.log(`\x1b[36m  Email: ${mockEmail}\n  Password: ${_generatedPassword}\x1b[0m`);
+  // eslint-disable-next-line no-console
+  console.log('\x1b[33m  Set MOCK_ADMIN_EMAIL / MOCK_ADMIN_PASSWORD in .env to make it persistent.\x1b[0m');
+}
+
+const demoUser = {
+  _id: demoUserId,
+  firstName: 'Admin',
+  lastName: 'Local',
+  email: mockEmail,
+  password: bcrypt.hashSync(mockPassword, 10),
+  role: 'admin',
+  companyId: demoCompanyId,
+  isActive: true,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+const demoTeamMember = {
+  _id: generateId(),
+  userId: demoUserId,
+  companyId: demoCompanyId,
+  firstName: 'Admin',
+  lastName: 'Local',
+  email: mockEmail,
+  role: 'admin',
+  permissions: ['all'],
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+// Stockage en mémoire
+const mockDB = {
+  users: [demoUser],
+  companies: [demoCompany],
+  teamMembers: [demoTeamMember],
+  missions: [],
+  candidates: [],
+  applications: [],
 };
 
 /**

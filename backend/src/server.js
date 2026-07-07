@@ -3,6 +3,7 @@
  * Node.js + Express + MongoDB
  */
 
+import * as Sentry from '@sentry/node';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -13,18 +14,35 @@ import dotenv from 'dotenv';
 import mongoSanitize from 'express-mongo-sanitize';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import logger from './utils/logger.js';
+
+// Load env first so SENTRY_DSN is available
+dotenv.config();
+
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'development',
+    tracesSampleRate: 0.1,
+    integrations: [Sentry.httpIntegration()],
+  });
+}
 
 // Import configurations
-import { connectDatabase } from './config/database.js';
+import { connectDatabase, getDbStatus } from './config/database.js';
+import { startTrialService } from './services/trial.service.js';
 import { errorHandler, notFound } from './middleware/error.middleware.js';
 import { globalLimiter, authLimiter, apiLimiter } from './middleware/rateLimiter.js';
 import { protect } from './middleware/auth.middleware.js';
+import { csrfProtection } from './middleware/csrf.middleware.js';
+import { getAllowedOrigins, getCorsOptions } from './config/cors.js';
 
 // Import routes
 import routes from './routes/index.js';
 
-// Load environment variables
-dotenv.config();
+// Swagger
+import swaggerUi from 'swagger-ui-express';
+import swaggerSpec from './docs/swagger.js';
 
 // Initialize Express app
 const app = express();
@@ -49,31 +67,12 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-// CORS configuration
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://localhost:3002',
-  'http://localhost:3003',
-  process.env.FRONTEND_URL
-].filter(Boolean);
+// CORS configuration (T-334 : partagée avec app.js via config/cors.js)
+const allowedOrigins = getAllowedOrigins();
+app.use(cors(getCorsOptions()));
 
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or Postman)
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.warn(`⚠️ CORS blocked origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+// CSRF protection (Origin/Referer validation for mutation endpoints)
+app.use(csrfProtection(allowedOrigins));
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
@@ -84,19 +83,28 @@ app.use(cookieParser());
 app.use(mongoSanitize({
   replaceWith: '_',
   onSanitize: ({ req, key }) => {
-    console.warn(`⚠️ Tentative d'injection NoSQL détectée - Key: ${key}`);
+    logger.warn('NoSQL injection attempt detected', {
+      event: 'security.nosql_injection',
+      key,
+      ip: req.ip,
+      url: req.originalUrl,
+      method: req.method,
+    });
   }
 }));
 
 // Compression
 app.use(compression());
 
-// Logging
-if (process.env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
-} else {
-  app.use(morgan('combined'));
-}
+// T-339 : le format 'combined' logge l'URL complète, query string incluse —
+// GET /api/sse/stream?token=<JWT> écrivait le JWT en clair dans les logs
+// applicatifs (et ceux de tout proxy intermédiaire en prod). On redacte tout
+// paramètre `token` avant de logger, plutôt que d'utiliser :url directement.
+morgan.token('redacted-url', (req) => req.originalUrl.replace(/([?&]token=)[^&]+/i, '$1[REDACTED]'));
+app.use(morgan(
+  ':remote-addr - :remote-user [:date[clf]] ":method :redacted-url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"',
+  { stream: logger.stream }
+));
 
 // Rate limiting - Global limiter applied to all API routes
 app.use('/api', globalLimiter);
@@ -110,14 +118,50 @@ app.use('/uploads', protect, express.static(path.join(__dirname, '../uploads')))
 
 // Health check
 app.get('/health', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'ATS Ultimate API is running! 🚀',
+  const db = getDbStatus();
+  const memMB = process.memoryUsage();
+  const healthy = db.readyState === 1 || process.env.NODE_ENV === 'development';
+
+  res.status(healthy ? 200 : 503).json({
+    success: healthy,
+    status: healthy ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development'
+    uptime: Math.floor(process.uptime()),
+    environment: process.env.NODE_ENV || 'development',
+    version: process.env.npm_package_version || '1.0.0',
+    database: {
+      state: db.state,
+      host: db.host,
+      name: db.name,
+    },
+    memory: {
+      heapUsedMB: Math.round(memMB.heapUsed / 1024 / 1024),
+      heapTotalMB: Math.round(memMB.heapTotal / 1024 / 1024),
+      rssMB: Math.round(memMB.rss / 1024 / 1024),
+    },
   });
 });
+
+// ── Swagger UI (/api/docs) ──────────────────────────────────────────────────
+// Helmet CSP relaxée uniquement pour cette route (swagger-ui nécessite unsafe-inline)
+app.use('/api/docs', (req, res, next) => {
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; worker-src blob:;"
+  );
+  next();
+}, swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customSiteTitle: 'ATS Ultimate — API Docs',
+  swaggerOptions: {
+    persistAuthorization: true,
+    displayRequestDuration: true,
+    filter: true,
+    defaultModelsExpandDepth: 1,
+  },
+}));
+
+// Spec OpenAPI brute exportable en JSON
+app.get('/api/docs/spec.json', (req, res) => res.json(swaggerSpec));
 
 // API routes (centralized)
 // Apply stricter rate limiting for auth routes
@@ -139,44 +183,51 @@ app.use(errorHandler);
 // ===== START SERVER =====
 
 const startServer = async () => {
+  // T-363 : `isProduction` n'était jamais déclaré dans ce fichier (seul cors.js
+  // en a une copie locale, non exportée) — chaque démarrage levait un
+  // ReferenceError non catché, transformé en unhandledRejection → process.exit(1).
+  const isProduction = process.env.NODE_ENV === 'production';
+  // Fail fast in production if required env vars are missing
+  if (isProduction && !process.env.FRONTEND_URL) {
+    logger.error('FRONTEND_URL est requis en production (variable .env manquante)');
+    process.exit(1);
+  }
+  if (!process.env.JWT_SECRET) {
+    logger.error('JWT_SECRET est requis (variable .env manquante)');
+    process.exit(1);
+  }
+
   try {
-    // Try to connect to database (optional for development)
-    let dbStatus = 'Not Connected ⚠️ (Mock Data)';
+    let dbConnected = false;
     try {
       await connectDatabase();
-      dbStatus = 'Connected ✅';
+      dbConnected = true;
     } catch (dbError) {
-      console.warn('⚠️ MongoDB non disponible - Mode Mock Data activé');
-      console.warn('   Pour utiliser MongoDB : installez et démarrez MongoDB localement');
-      console.warn('   ou utilisez MongoDB Atlas (cloud)');
+      logger.warn('MongoDB non disponible — Mode Mock Data activé', {
+        hint: 'Installez MongoDB localement ou configurez MongoDB Atlas',
+      });
     }
 
-    // Start listening
-    app.listen(PORT, () => {
-      console.log(`
-╔════════════════════════════════════════════╗
-║   🚀 ATS Ultimate Backend API Server       ║
-╠════════════════════════════════════════════╣
-║   Port        : ${PORT}                    ║
-║   Environment : ${process.env.NODE_ENV || 'development'}            ║
-║   Database    : ${dbStatus}  ║
-║   Status      : Running 🟢                 ║
-║   API Docs    : http://localhost:${PORT}/health     ║
-╚════════════════════════════════════════════╝
+    // Démarrer les services de fond
+    startTrialService();
 
-📝 Note: Les routes retournent des données mock pour le moment.
-   Implémentez les controllers pour connecter à MongoDB.
-      `);
+    app.listen(PORT, () => {
+      logger.info('ATS Ultimate Backend API démarré', {
+        port: PORT,
+        env: process.env.NODE_ENV || 'development',
+        db: dbConnected ? 'connected' : 'mock',
+        url: `http://localhost:${PORT}/health`,
+      });
     });
   } catch (error) {
-    console.error('❌ Erreur au démarrage du serveur:', error);
+    logger.error('Erreur au démarrage du serveur', { error });
     process.exit(1);
   }
 };
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
-  console.error('❌ UNHANDLED REJECTION:', err);
+  logger.error('UNHANDLED REJECTION — shutting down', { error: err });
   process.exit(1);
 });
 

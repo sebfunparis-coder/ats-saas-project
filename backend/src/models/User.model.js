@@ -122,12 +122,34 @@ const userSchema = new mongoose.Schema({
   },
   lockUntil: Date,
 
+  // Authentification deux facteurs (TOTP)
+  twoFactorEnabled: {
+    type: Boolean,
+    default: false
+  },
+  twoFactorSecret: {
+    type: String,
+    select: false
+  },
+  twoFactorBackupCodes: {
+    type: [String],
+    select: false,
+    default: []
+  },
+
   // Statut
   isActive: {
     type: Boolean,
     default: true
   },
   isDeleted: {
+    type: Boolean,
+    default: false
+  },
+  // T-376 : les comptes créés par un admin via team.controller.js (mot de
+  // passe temporaire généré aléatoirement, jamais envoyé par email dans cet
+  // environnement) doivent forcer un changement au premier login.
+  mustChangePassword: {
     type: Boolean,
     default: false
   }
@@ -165,7 +187,8 @@ userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
 
   try {
-    const salt = await bcrypt.genSalt(12);
+    const rounds = process.env.NODE_ENV === 'test' ? 1 : 12;
+    const salt = await bcrypt.genSalt(rounds);
     this.password = await bcrypt.hash(this.password, salt);
     next();
   } catch (error) {

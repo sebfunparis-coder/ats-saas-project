@@ -1,0 +1,17 @@
+version: '3.9'
+# Usage : docker-compose -f docker-compose.dev.yml up
+# Lance uniquement MongoDB en local pour le développement
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_dev_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: ats-ultimate
+
+volumes:
+  mongo_dev_data:

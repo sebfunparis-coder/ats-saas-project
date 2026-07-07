@@ -55,13 +55,25 @@ router.post('/', validateApplication, applicationController.createApplication);
  * PUT /api/applications/:id
  * Mettre à jour une candidature
  */
-router.put('/:id', validateMongoId, applicationController.updateApplication);
+router.put('/:id', validateMongoId, validateApplication, applicationController.updateApplication);
 
 /**
  * DELETE /api/applications/:id
- * Supprimer une candidature
+ * Soft-delete une candidature
  */
 router.delete('/:id', validateMongoId, applicationController.deleteApplication);
+
+/**
+ * PATCH /api/applications/:id/restore
+ * Restaurer une candidature soft-deleted
+ */
+router.patch('/:id/restore', validateMongoId, applicationController.restoreApplication);
+
+/**
+ * DELETE /api/applications/:id/purge
+ * Suppression définitive (RGPD)
+ */
+router.delete('/:id/purge', validateMongoId, applicationController.purgeApplication);
 
 // ===== ACTIONS PIPELINE =====
 
@@ -116,5 +128,11 @@ router.put(
   validateMongoId,
   applicationController.updateInterview
 );
+
+/**
+ * POST /api/applications/:id/score
+ * Lancer le scoring IA (asynchrone — résultat via SSE application:score)
+ */
+router.post('/:id/score', validateMongoId, applicationController.scoreApplication);
 
 export default router;

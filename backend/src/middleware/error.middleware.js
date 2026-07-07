@@ -4,19 +4,9 @@
  * Gestion centralisée des erreurs
  */
 
-/**
- * Custom Error Class
- */
-export class AppError extends Error {
-  constructor(message, statusCode) {
-    super(message);
-    this.statusCode = statusCode;
-    this.status = `${statusCode}`.startsWith('4') ? 'fail' : 'error';
-    this.isOperational = true;
-
-    Error.captureStackTrace(this, this.constructor);
-  }
-}
+export { AppError } from '../utils/AppError.js';
+import * as Sentry from '@sentry/node';
+import logger from '../utils/logger.js';
 
 /**
  * Gestion des erreurs Mongoose CastError (ID invalide)
@@ -86,7 +76,14 @@ const handleJWTExpiredError = () => {
  * Envoyer erreur en développement (détails complets)
  */
 const sendErrorDev = (err, req, res) => {
-  console.error('💥 ERROR:', err);
+  if ((err.statusCode || 500) >= 500) {
+    logger.error(err.message, {
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      statusCode: err.statusCode || 500,
+    });
+  }
 
   res.status(err.statusCode || 500).json({
     success: false,
@@ -114,10 +111,23 @@ const sendErrorProd = (err, req, res) => {
   }
   // Erreur de programmation ou autre erreur inconnue : ne pas leak détails
   else {
-    // 1. Log l'erreur
-    console.error('💥 ERROR:', err);
+    logger.error(err.message, {
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      statusCode: 500,
+    });
 
-    // 2. Envoyer message générique
+    if (process.env.SENTRY_DSN) {
+      Sentry.withScope((scope) => {
+        if (req.user) {
+          scope.setUser({ id: String(req.user.id), email: req.user.email, companyId: String(req.user.companyId) });
+        }
+        scope.setContext('request', { url: req.originalUrl, method: req.method });
+        Sentry.captureException(err);
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Une erreur est survenue sur le serveur'
@@ -135,7 +145,7 @@ export const errorHandler = (err, req, res, next) => {
   err.statusCode = err.statusCode || 500;
   err.status = err.status || 'error';
 
-  if (process.env.NODE_ENV === 'development') {
+  if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
     sendErrorDev(err, req, res);
   } else if (process.env.NODE_ENV === 'production') {
     let error = { ...err };

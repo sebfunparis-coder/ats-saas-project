@@ -53,6 +53,7 @@ router.put(
   '/:id',
   authorize('admin', 'superadmin'),
   validateMongoId,
+  validateTeamMember,
   teamController.updateTeamMember
 );
 

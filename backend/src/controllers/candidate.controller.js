@@ -6,18 +6,14 @@
 
 import Candidate from '../models/Candidate.model.js';
 import Application from '../models/Application.model.js';
+import Company from '../models/Company.model.js';
+import { broadcast } from '../utils/sseManager.js';
 import { validationResult } from 'express-validator';
-
-/**
- * Custom error class
- */
-class AppError extends Error {
-  constructor(message, statusCode) {
-    super(message);
-    this.statusCode = statusCode;
-    this.isOperational = true;
-  }
-}
+import { AppError } from '../utils/AppError.js';
+import { successResponse, createdResponse, paginationMeta } from '../utils/response.js';
+import { escapeRegExp } from '../utils/regexHelpers.js';
+import { triggerWebhookEvent } from '../services/webhook.service.js';
+import logger from '../utils/logger.js';
 
 // ===== CONTROLLERS =====
 
@@ -42,70 +38,40 @@ export const getAllCandidates = async (req, res, next) => {
       limit = 50,
       skip = 0
     } = req.query;
+    const safeLimit = Math.min(parseInt(limit) || 20, 100);
+    const safeSkip = parseInt(skip) || 0;
 
-    // Construire le filtre
     const filter = { companyId };
 
-    if (status) {
-      filter.status = status;
-    }
-
-    if (experienceLevel) {
-      filter.experienceLevel = experienceLevel;
-    }
-
+    if (status) filter.status = status;
+    if (experienceLevel) filter.experienceLevel = experienceLevel;
     if (skills) {
-      // Recherche de skills (peut être une string séparée par virgules)
       const skillsArray = skills.split(',').map(s => s.trim());
       filter.skills = { $in: skillsArray };
     }
+    // T-366 : échapper les métacaractères regex avant new RegExp() — un pattern
+    // à backtracking catastrophique dans un paramètre de requête pouvait sinon
+    // bloquer un thread MongoDB de façon disproportionnée (ReDoS).
+    if (position) filter.position = new RegExp(escapeRegExp(position), 'i');
+    if (location) filter.location = new RegExp(escapeRegExp(location), 'i');
+    if (availability) filter.availability = availability;
+    if (rating) filter.rating = { $gte: parseInt(rating) };
+    if (search) filter.$text = { $search: search };
 
-    if (position) {
-      filter.position = new RegExp(position, 'i'); // Case insensitive
-    }
-
-    if (location) {
-      filter.location = new RegExp(location, 'i');
-    }
-
-    if (availability) {
-      filter.availability = availability;
-    }
-
-    if (rating) {
-      filter.rating = { $gte: parseInt(rating) };
-    }
-
-    // Recherche texte (full-text search)
-    if (search) {
-      filter.$text = { $search: search };
-    }
-
-    // Construire le tri
     const sort = {};
     sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
-    // Exécuter la requête
-    const candidates = await Candidate.find(filter)
-      .sort(sort)
-      .limit(parseInt(limit))
-      .skip(parseInt(skip))
-      .populate('createdBy', 'firstName lastName email')
-      .lean();
+    const [candidates, total] = await Promise.all([
+      Candidate.find(filter)
+        .sort(sort)
+        .limit(safeLimit)
+        .skip(safeSkip)
+        .populate('createdBy', 'firstName lastName email')
+        .lean(),
+      Candidate.countDocuments(filter)
+    ]);
 
-    // Compter le total
-    const total = await Candidate.countDocuments(filter);
-
-    res.json({
-      success: true,
-      data: candidates,
-      pagination: {
-        total,
-        limit: parseInt(limit),
-        skip: parseInt(skip),
-        hasMore: parseInt(skip) + parseInt(limit) < total
-      }
-    });
+    successResponse(res, candidates, '', paginationMeta(total, Math.floor(safeSkip / safeLimit) + 1, safeLimit));
   } catch (error) {
     next(error);
   }
@@ -172,11 +138,13 @@ export const createCandidate = async (req, res, next) => {
       throw new AppError('Un candidat avec cet email existe déjà', 400);
     }
 
-    // Vérifier limites du plan (à implémenter avec Company.canAddCandidate())
-    // const company = await Company.findById(companyId);
-    // if (!company.canAddCandidate()) {
-    //   throw new AppError('Limite de candidats atteinte pour votre plan', 403);
-    // }
+    // T-335 : Company.canAddCandidate() existait déjà sur le modèle mais
+    // n'était jamais appelé — une company pouvait dépasser sa limite
+    // contractuelle de candidats sans aucun blocage serveur.
+    const company = await Company.findById(companyId);
+    if (company && !(await company.canAddCandidate())) {
+      throw new AppError('Limite de candidats atteinte pour votre plan', 403);
+    }
 
     const candidateData = {
       ...req.body,
@@ -185,6 +153,14 @@ export const createCandidate = async (req, res, next) => {
     };
 
     const candidate = await Candidate.create(candidateData);
+
+    broadcast(companyId, 'candidate:created', { candidate });
+    triggerWebhookEvent(companyId, 'candidate.created', {
+      candidateId: candidate._id,
+      firstName: candidate.firstName,
+      lastName: candidate.lastName,
+      email: candidate.email,
+    }).catch(err => logger.warn('Webhook candidate.created failed', { error: err.message }));
 
     res.status(201).json({
       success: true,
@@ -269,6 +245,14 @@ export const updateCandidate = async (req, res, next) => {
 
     await candidate.save();
 
+    triggerWebhookEvent(companyId, 'candidate.updated', {
+      candidateId: candidate._id,
+      firstName: candidate.firstName,
+      lastName: candidate.lastName,
+      email: candidate.email,
+      status: candidate.status,
+    }).catch(err => logger.warn('Webhook candidate.updated failed', { error: err.message }));
+
     res.json({
       success: true,
       data: candidate
@@ -303,7 +287,14 @@ export const deleteCandidate = async (req, res, next) => {
       );
     }
 
-    await candidate.deleteOne();
+    candidate.isDeleted = true;
+    candidate.deletedAt = new Date();
+    await candidate.save();
+
+    triggerWebhookEvent(companyId, 'candidate.deleted', {
+      candidateId: candidate._id,
+      email: candidate.email,
+    }).catch(err => logger.warn('Webhook candidate.deleted failed', { error: err.message }));
 
     res.json({
       success: true,
@@ -398,40 +389,30 @@ export const getCandidateApplications = async (req, res, next) => {
     const { id } = req.params;
     const { companyId } = req.user;
     const { status, limit = 50, skip = 0 } = req.query;
+    const safeLimit = Math.min(parseInt(limit) || 20, 100);
+    const safeSkip = parseInt(skip) || 0;
 
-    // Vérifier que le candidat existe et appartient à la company
-    const candidate = await Candidate.findOne({ _id: id, companyId });
+    const candidate = await Candidate.findOne({ _id: id, companyId }).lean();
 
     if (!candidate) {
       throw new AppError('Candidat non trouvé', 404);
     }
 
     const filter = { candidateId: id, companyId };
+    if (status) filter.status = status;
 
-    if (status) {
-      filter.status = status;
-    }
+    const [applications, total] = await Promise.all([
+      Application.find(filter)
+        .sort({ appliedAt: -1 })
+        .limit(safeLimit)
+        .skip(safeSkip)
+        .populate('missionId', 'title company status contract location')
+        .populate('createdBy', 'firstName lastName')
+        .lean(),
+      Application.countDocuments(filter)
+    ]);
 
-    const applications = await Application.find(filter)
-      .sort({ appliedAt: -1 })
-      .limit(parseInt(limit))
-      .skip(parseInt(skip))
-      .populate('missionId', 'title company status contract location')
-      .populate('createdBy', 'firstName lastName')
-      .lean();
-
-    const total = await Application.countDocuments(filter);
-
-    res.json({
-      success: true,
-      data: applications,
-      pagination: {
-        total,
-        limit: parseInt(limit),
-        skip: parseInt(skip),
-        hasMore: parseInt(skip) + parseInt(limit) < total
-      }
-    });
+    successResponse(res, applications, '', paginationMeta(total, Math.floor(safeSkip / safeLimit) + 1, safeLimit));
   } catch (error) {
     next(error);
   }
@@ -559,6 +540,104 @@ export const importCandidates = async (req, res, next) => {
   }
 };
 
+/**
+ * PATCH /api/candidates/:id/restore
+ */
+export const restoreCandidate = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { companyId } = req.user;
+
+    const result = await Candidate.updateOne(
+      { _id: id, companyId, isDeleted: true },
+      { $set: { isDeleted: false, deletedAt: null } }
+    );
+
+    if (result.matchedCount === 0) {
+      throw new AppError('Candidat supprimé non trouvé', 404);
+    }
+
+    res.json({ success: true, message: 'Candidat restauré avec succès' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/candidates/:id/purge
+ */
+export const purgeCandidate = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { companyId } = req.user;
+
+    const result = await Candidate.deleteOne({ _id: id, companyId, isDeleted: true });
+
+    if (result.deletedCount === 0) {
+      throw new AppError('Candidat supprimé non trouvé', 404);
+    }
+
+    res.json({ success: true, message: 'Candidat supprimé définitivement' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/candidates/bulk
+ * Soft-delete plusieurs candidats en une requête
+ */
+export const bulkDeleteCandidates = async (req, res, next) => {
+  try {
+    const { companyId } = req.user;
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new AppError('ids doit être un tableau non vide', 400);
+    }
+
+    const result = await Candidate.updateMany(
+      { _id: { $in: ids }, companyId },
+      { $set: { isDeleted: true, deletedAt: new Date() } }
+    );
+
+    res.json({ success: true, deleted: result.modifiedCount });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PUT /api/candidates/bulk/status
+ * Met à jour le statut de plusieurs candidats en une requête
+ */
+export const bulkUpdateCandidatesStatus = async (req, res, next) => {
+  try {
+    const { companyId } = req.user;
+    const { ids, status } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new AppError('ids doit être un tableau non vide', 400);
+    }
+    if (!status) {
+      throw new AppError('status est requis', 400);
+    }
+
+    // T-374 : runValidators absent laissait passer n'importe quelle valeur de
+    // `status`, hors de l'enum Mongoose — route désormais aussi restreinte
+    // aux rôles admin/manager/superadmin (candidate.routes.js).
+    const result = await Candidate.updateMany(
+      { _id: { $in: ids }, companyId },
+      { $set: { status } },
+      { runValidators: true }
+    );
+
+    res.json({ success: true, updated: result.modifiedCount });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Export default pour compatibilité
 export default {
   getAllCandidates,
@@ -566,9 +645,13 @@ export default {
   createCandidate,
   updateCandidate,
   deleteCandidate,
+  restoreCandidate,
+  purgeCandidate,
   updateCandidateStatus,
   rateCandidate,
   getCandidateApplications,
   getCandidateStats,
-  importCandidates
+  importCandidates,
+  bulkDeleteCandidates,
+  bulkUpdateCandidatesStatus
 };

@@ -1,44 +1,100 @@
-/**
- * 🗄️ Configuration Database MongoDB
- */
-
 import mongoose from 'mongoose';
+import logger from '../utils/logger.js';
 
-export const connectDatabase = async () => {
+const RETRY_DELAY_MS = 5000;
+const MAX_RETRIES = 5;
+
+const getConnectionOptions = () => ({
+  maxPoolSize: 20,
+  minPoolSize: 2,
+  serverSelectionTimeoutMS: 10000,
+  socketTimeoutMS: 45000,
+  heartbeatFrequencyMS: 10000,
+  retryWrites: true,
+  retryReads: true,
+  w: 'majority',
+  readPreference: 'primaryPreferred',
+  compressors: ['zlib'],
+  zlibCompressionLevel: 6,
+  autoIndex: process.env.NODE_ENV !== 'production',
+  autoCreate: process.env.NODE_ENV !== 'production',
+});
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export const connectDatabase = async (retryCount = 0) => {
+  const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/ats-ultimate';
+
+  const isAtlas = MONGODB_URI.includes('mongodb+srv');
+
   try {
-    const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/ats-ultimate';
+    const conn = await mongoose.connect(MONGODB_URI, getConnectionOptions());
 
-    const options = {
-      maxPoolSize: 10,
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 45000,
-    };
+    const host = isAtlas
+      ? MONGODB_URI.replace(/mongodb\+srv:\/\/[^@]+@/, '').split('/')[0]
+      : conn.connection.host;
 
-    const conn = await mongoose.connect(MONGODB_URI, options);
+    logger.info('MongoDB connecté', {
+      host,
+      mode: isAtlas ? 'Atlas (cloud)' : 'local',
+      db: conn.connection.name,
+      pool: `${getConnectionOptions().minPoolSize}-${getConnectionOptions().maxPoolSize}`,
+    });
 
-    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
-
-    // Handle connection events
     mongoose.connection.on('error', (err) => {
-      console.error(`❌ MongoDB connection error: ${err}`);
+      logger.error('Erreur MongoDB', { error: err.message });
     });
 
     mongoose.connection.on('disconnected', () => {
-      console.warn('⚠️ MongoDB disconnected');
+      logger.warn('MongoDB déconnecté — tentative de reconnexion automatique');
+    });
+
+    mongoose.connection.on('reconnected', () => {
+      logger.info('MongoDB reconnecté');
     });
 
     return conn;
   } catch (error) {
-    // En développement, on ne fait pas crash le serveur si MongoDB n'est pas dispo
-    if (process.env.NODE_ENV === 'development') {
-      console.warn(`⚠️ Database connection failed: ${error.message.split(',')[0]}`);
-      throw error; // On throw pour que server.js puisse le catch
-    } else {
-      // En production, on fait crash le serveur
-      console.error(`❌ Database connection failed: ${error.message}`);
-      process.exit(1);
+    const isLastRetry = retryCount >= MAX_RETRIES;
+
+    if (process.env.NODE_ENV === 'production' && !isLastRetry) {
+      const delay = RETRY_DELAY_MS * Math.pow(2, retryCount);
+      logger.warn(`MongoDB indisponible — retry ${retryCount + 1}/${MAX_RETRIES} dans ${delay / 1000}s`, {
+        error: error.message,
+      });
+      await sleep(delay);
+      return connectDatabase(retryCount + 1);
     }
+
+    throw error;
   }
 };
 
-export default { connectDatabase };
+export const disconnectDatabase = async () => {
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.disconnect();
+    logger.info('MongoDB déconnecté proprement');
+  }
+};
+
+export const getDbStatus = () => {
+  const states = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
+  return {
+    state: states[mongoose.connection.readyState] ?? 'unknown',
+    host: mongoose.connection.host ?? null,
+    name: mongoose.connection.name ?? null,
+    readyState: mongoose.connection.readyState,
+  };
+};
+
+process.on('SIGINT', async () => {
+  await disconnectDatabase();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  await disconnectDatabase();
+  process.exit(0);
+});
+
+export default { connectDatabase, disconnectDatabase, getDbStatus };

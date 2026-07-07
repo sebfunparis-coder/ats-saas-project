@@ -6,18 +6,10 @@
 
 import User from '../models/User.model.js';
 import TeamMember from '../models/Team.model.js';
+import Company from '../models/Company.model.js';
 import { validationResult } from 'express-validator';
-
-/**
- * Custom error class
- */
-class AppError extends Error {
-  constructor(message, statusCode) {
-    super(message);
-    this.statusCode = statusCode;
-    this.isOperational = true;
-  }
-}
+import { AppError } from '../utils/AppError.js';
+import { successResponse, createdResponse, paginationMeta } from '../utils/response.js';
 
 // ===== CONTROLLERS =====
 
@@ -42,45 +34,30 @@ export const getAllUsers = async (req, res, next) => {
       limit = 50,
       skip = 0
     } = req.query;
+    const safeLimit = Math.min(parseInt(limit) || 20, 100);
+    const safeSkip = parseInt(skip) || 0;
 
-    // Construire le filtre
     const filter = { companyId };
 
-    if (isActive !== undefined) {
-      filter.isActive = isActive === 'true';
-    }
+    if (isActive !== undefined) filter.isActive = isActive === 'true';
+    if (userRole) filter.role = userRole;
 
-    if (userRole) {
-      filter.role = userRole;
-    }
-
-    // Construire le tri
     const sort = {};
     sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
-    // Exécuter la requête
-    const users = await User.find(filter)
-      .sort(sort)
-      .limit(parseInt(limit))
-      .skip(parseInt(skip))
-      .populate('companyId', 'name plan status')
-      .populate('teamMemberId', 'role department stats')
-      .select('-password') // Ne jamais retourner les mots de passe
-      .lean();
+    const [users, total] = await Promise.all([
+      User.find(filter)
+        .sort(sort)
+        .limit(safeLimit)
+        .skip(safeSkip)
+        .populate('companyId', 'name plan status')
+        .populate('teamMemberId', 'role department stats')
+        .select('-password')
+        .lean(),
+      User.countDocuments(filter)
+    ]);
 
-    // Compter le total
-    const total = await User.countDocuments(filter);
-
-    res.json({
-      success: true,
-      data: users,
-      pagination: {
-        total,
-        limit: parseInt(limit),
-        skip: parseInt(skip),
-        hasMore: parseInt(skip) + parseInt(limit) < total
-      }
-    });
+    successResponse(res, users, '', paginationMeta(total, Math.floor(safeSkip / safeLimit) + 1, safeLimit));
   } catch (error) {
     next(error);
   }
@@ -150,11 +127,12 @@ export const createUser = async (req, res, next) => {
       throw new AppError('Un utilisateur avec cet email existe déjà', 400);
     }
 
-    // Vérifier limites du plan (à implémenter avec Company.canAddUser())
-    // const company = await Company.findById(companyId);
-    // if (!company.canAddUser()) {
-    //   throw new AppError('Limite d\'utilisateurs atteinte pour votre plan', 403);
-    // }
+    // T-335 : Company.canAddUser() existait déjà sur le modèle mais n'était
+    // jamais appelé.
+    const company = await Company.findById(companyId);
+    if (company && !company.canAddUser()) {
+      throw new AppError('Limite d\'utilisateurs atteinte pour votre plan', 403);
+    }
 
     const userData = {
       email,
@@ -167,6 +145,14 @@ export const createUser = async (req, res, next) => {
     };
 
     const user = await User.create(userData);
+
+    // canAddUser() compte sur company.userIds — le tenir à jour ici (comme le
+    // fait déjà auth.controller.js pour l'inscription) pour que la limite
+    // reste correcte pour les prochains appels.
+    if (company) {
+      company.userIds.push(user._id);
+      await company.save();
+    }
 
     // Retourner sans le mot de passe
     const userResponse = user.toObject();
@@ -387,7 +373,10 @@ export const updateUserRole = async (req, res, next) => {
       throw new AppError('Le rôle est requis', 400);
     }
 
-    const validRoles = ['user', 'admin'];
+    // T-401 : n'incluait pas 'recruiter'/'manager', alors que ce sont deux
+    // valeurs réelles de l'enum User.model.js (role) — un admin ne pouvait
+    // légitimement assigner que 'user'/'admin' via cette API.
+    const validRoles = ['user', 'recruiter', 'manager', 'admin'];
     if (userRole !== 'superadmin' && newRole === 'superadmin') {
       throw new AppError('Seul un superadmin peut créer d\'autres superadmins', 403);
     }

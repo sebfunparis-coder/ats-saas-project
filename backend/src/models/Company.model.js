@@ -185,6 +185,47 @@ const companySchema = new mongoose.Schema({
 
   tags: [String],
 
+  // Portail carrières public
+  slug: {
+    type: String,
+    unique: true,
+    sparse: true,
+    lowercase: true,
+    trim: true
+  },
+
+  careerPageEnabled: {
+    type: Boolean,
+    default: true
+  },
+
+  careerPageBio: {
+    type: String,
+    maxlength: [500, 'La bio ne peut pas dépasser 500 caractères']
+  },
+
+  // T-378 (bonus) : ce champ était écrit par calendarCallback.routes.js
+  // (`updateOne({ $set: { 'integrationTokens.googleCalendar': ... } } })`)
+  // sans jamais être déclaré dans le schéma — en mode strict (défaut
+  // Mongoose), un chemin non déclaré est silencieusement supprimé d'un
+  // update, donc les tokens OAuth Google/Microsoft Calendar n'étaient en
+  // réalité jamais persistés. Type Mixed : la forme diffère par provider
+  // (accessToken/refreshToken/expiresAt pour Google, +tenantId pour
+  // Microsoft) et l'objet est géré exclusivement par calendar.service.js.
+  integrationTokens: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+
+  // Préférence de provider visio pour la création automatique de réunions
+  // (T-272/273) — lu par videocall.service.js. 'none' = pas de création
+  // automatique de lien visio à la planification d'un entretien.
+  videoProvider: {
+    type: String,
+    enum: ['none', 'zoom', 'teams'],
+    default: 'none'
+  },
+
   // Métadonnées
   lastLoginAt: {
     type: Date
@@ -245,8 +286,20 @@ companySchema.virtual('trialDaysLeft').get(function() {
 // ===== MIDDLEWARE =====
 
 // Pre-save : Update timestamp
+const generateSlug = (name) =>
+  name
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
 companySchema.pre('save', function(next) {
   this.updatedAt = Date.now();
+
+  // Auto-generate slug from name for new companies
+  if (this.isNew && !this.slug && this.name) {
+    this.slug = generateSlug(this.name);
+  }
 
   // Set trial end date if new and in trial
   if (this.isNew && this.status === 'trial' && !this.trialEndsAt) {

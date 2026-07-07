@@ -141,7 +141,11 @@ const clientSchema = new mongoose.Schema({
     ref: 'Company',
     required: [true, 'Le client doit être lié à une entreprise'],
     index: true
-  }
+  },
+
+  // Soft delete
+  isDeleted: { type: Boolean, default: false, index: true },
+  deletedAt: { type: Date, default: null }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -246,6 +250,18 @@ clientSchema.methods.removeContact = async function(contactId) {
   this.contacts = this.contacts.filter(c => c._id.toString() !== contactId.toString());
   await this.save();
 };
+
+// ===== SOFT DELETE MIDDLEWARE =====
+
+const softDeleteFilter = function(next) {
+  if (!this.options.includeDeleted) {
+    this.where({ isDeleted: { $ne: true } });
+  }
+  next();
+};
+
+clientSchema.pre(/^find/, softDeleteFilter);
+clientSchema.pre('countDocuments', softDeleteFilter);
 
 // ===== EXPORT =====
 

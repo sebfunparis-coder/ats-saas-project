@@ -6,7 +6,7 @@
 
 import express from 'express';
 import * as clientController from '../controllers/client.controller.js';
-import { protect } from '../middleware/auth.middleware.js';
+import { protect, authorize } from '../middleware/auth.middleware.js';
 import {
   validateClient,
   validateContact,
@@ -53,8 +53,19 @@ router.put('/:id', validateMongoId, validateClient, clientController.updateClien
 /**
  * DELETE /api/clients/:id
  * Supprimer un client
+ * T-342 : aucune restriction de rôle (contrairement à candidates/missions
+ * purge, qui exigent admin/superadmin) — n'importe quel utilisateur
+ * authentifié de la company pouvait supprimer un client CRM.
  */
-router.delete('/:id', validateMongoId, clientController.deleteClient);
+router.delete('/:id', authorize('admin', 'manager', 'superadmin'), validateMongoId, clientController.deleteClient);
+
+router.patch('/:id/restore', validateMongoId, clientController.restoreClient);
+
+/**
+ * DELETE /api/clients/:id/purge
+ * Suppression définitive — même restriction que purgeCandidate/purgeMission.
+ */
+router.delete('/:id/purge', authorize('admin', 'superadmin'), validateMongoId, clientController.purgeClient);
 
 // ===== ACTIONS =====
 
@@ -76,7 +87,7 @@ router.post('/:id/contact', validateMongoId, validateContact, clientController.a
  * PUT /api/clients/:id/contact/:contactId
  * Mettre à jour un contact
  */
-router.put('/:id/contact/:contactId', validateMongoId, clientController.updateContact);
+router.put('/:id/contact/:contactId', validateMongoId, validateContact, clientController.updateContact);
 
 /**
  * DELETE /api/clients/:id/contact/:contactId

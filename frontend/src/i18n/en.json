@@ -1,0 +1,251 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "missions": "Jobs",
+    "candidates": "Candidates",
+    "pipeline": "Pipeline",
+    "cvtheque": "CV Library",
+    "calendar": "Calendar",
+    "team": "Team",
+    "clients": "Clients",
+    "admin": "Administration",
+    "analytics": "Analytics",
+    "tasks": "Tasks",
+    "history": "History",
+    "superadmin": "Super Admin"
+  },
+  "sidebar": {
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "logout": "Logout",
+    "freeTrial": "No plan",
+    "daysLeft": "{{count}} day remaining",
+    "upgrade": "Upgrade to Pro"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "loading": "Loading…",
+    "error": "An error occurred",
+    "success": "Operation successful",
+    "confirm": "Confirm",
+    "close": "Close",
+    "noData": "No results",
+    "actions": "Actions",
+    "status": "Status",
+    "date": "Date",
+    "name": "Name",
+    "email": "Email",
+    "phone": "Phone",
+    "required": "required",
+    "optional": "optional",
+    "view": "View",
+    "create": "Create",
+    "update": "Update",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "submit": "Submit",
+    "import": "Import",
+    "download": "Download",
+    "copy": "Copy",
+    "share": "Share",
+    "preview": "Preview",
+    "refresh": "Refresh",
+    "today": "Today",
+    "all": "All",
+    "none": "None",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "auth": {
+    "login": {
+      "title": "Sign in",
+      "subtitle": "Welcome to ATS Ultimate",
+      "email": "Work email",
+      "password": "Password",
+      "submit": "Sign in",
+      "forgotPassword": "Forgot password?",
+      "noAccount": "No account yet?",
+      "register": "Create an account",
+      "demoTitle": "Demo accounts",
+      "demoHint": "Click to pre-fill",
+      "loading": "Signing in…",
+      "error": "Invalid email or password"
+    },
+    "register": {
+      "title": "Create your account",
+      "subtitle": "No commitment • Cancel anytime",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "email": "Work email",
+      "company": "Company name",
+      "password": "Password",
+      "confirmPassword": "Confirm password",
+      "submit": "Create my account",
+      "hasAccount": "Already have an account?",
+      "login": "Sign in",
+      "terms": "By creating an account, I agree to the",
+      "termsLink": "Terms of Service",
+      "privacy": "and the",
+      "privacyLink": "Privacy Policy",
+      "loading": "Creating account…"
+    },
+    "forgotPassword": {
+      "title": "Forgot password",
+      "subtitle": "Enter your email to receive a reset link",
+      "email": "Your email",
+      "submit": "Send reset link",
+      "back": "Back to sign in",
+      "success": "Email sent! Check your inbox."
+    },
+    "mfa": {
+      "title": "Two-factor authentication",
+      "subtitle": "Enter the code from your authentication app",
+      "code": "6-digit code",
+      "submit": "Verify",
+      "backupCode": "Use a recovery code",
+      "loading": "Verifying…"
+    }
+  },
+  "analytics": {
+    "title": "Analytics",
+    "subtitle": "Visualize your recruitment performance",
+    "period": "Period",
+    "periods": {
+      "7d": "Last 7 days",
+      "30d": "Last 30 days",
+      "90d": "Last 90 days",
+      "all": "All time"
+    },
+    "overview": {
+      "totalApplications": "Total applications",
+      "hired": "Hired",
+      "conversionRate": "Conversion rate",
+      "avgTimeToHire": "Avg. time to hire (days)"
+    },
+    "funnel": "Recruitment funnel",
+    "sources": "Application sources",
+    "topMissions": "Top jobs",
+    "recruiters": "Recruiter activity",
+    "exportPDF": "Export PDF"
+  },
+  "missions": {
+    "title": "Jobs",
+    "new": "New job",
+    "status": {
+      "open": "Open",
+      "closed": "Closed",
+      "filled": "Filled",
+      "paused": "Paused",
+      "draft": "Draft",
+      "pending_approval": "Pending approval"
+    },
+    "contract": {
+      "CDI": "Permanent",
+      "CDD": "Fixed-term",
+      "Freelance": "Freelance",
+      "Stage": "Internship",
+      "Alternance": "Apprenticeship"
+    },
+    "empty": "No jobs yet",
+    "emptyDesc": "Create your first job to start recruiting.",
+    "create": "+ Create a job",
+    "applicants": "application(s)"
+  },
+  "candidates": {
+    "title": "Candidates",
+    "new": "New candidate",
+    "parseCV": "Parse CV with AI",
+    "parseCVDrop": "Drop a PDF to auto-fill from resume",
+    "parseCVLoading": "AI analysis in progress…",
+    "parseCVSuccess": "Resume parsed! Review and correct the information.",
+    "parseCVError": "AI analysis failed",
+    "empty": "No candidates yet",
+    "emptyDesc": "Add your first candidate to your talent pool.",
+    "create": "+ Add a candidate",
+    "status": {
+      "active": "Active",
+      "passive": "Passive",
+      "not_looking": "Not looking"
+    }
+  },
+  "pipeline": {
+    "title": "Pipeline",
+    "stages": {
+      "received": "Received",
+      "screening": "Screening",
+      "interview_1": "Interview 1",
+      "interview_2": "Interview 2",
+      "offer": "Offer",
+      "final": "Finalist",
+      "hired": "Hired",
+      "rejected": "Rejected"
+    },
+    "empty": "No applications in the pipeline",
+    "emptyDesc": "Start by linking candidates to an open job."
+  },
+  "admin": {
+    "title": "Administration",
+    "tabs": {
+      "company": "🏢 Company",
+      "users": "👥 Users",
+      "billing": "💳 Billing",
+      "settings": "⚙️ Settings",
+      "emailTemplates": "✉️ Email Templates",
+      "integrations": "🔌 Integrations",
+      "webhooks": "🔔 Webhooks",
+      "apikeys": "🔑 API Keys",
+      "rgpd": "⚖️ GDPR"
+    }
+  },
+  "marketing": {
+    "hero": {
+      "badge": "🎉 #1 ATS Platform in France",
+      "title": "Hire top talent 10x faster ⚡",
+      "subtitle": "AI-powered ATS platform. Kanban pipeline, smart CV library, real-time analytics. No commitment.",
+      "cta": "Get started now →",
+      "demo": "Watch demo"
+    },
+    "nav": {
+      "home": "Home",
+      "features": "Features",
+      "pricing": "Pricing",
+      "blog": "Blog",
+      "demo": "Demo",
+      "nous": "About us",
+      "login": "Sign in",
+      "start": "Start now"
+    },
+    "pricing": {
+      "title": "Transparent Pricing",
+      "subtitle": "Choose the plan that fits your team",
+      "monthly": "Monthly",
+      "yearly": "Yearly",
+      "savePercent": "Save 20%",
+      "perMonth": "/month",
+      "perMonthBilled": "/month (billed annually)",
+      "custom": "Custom",
+      "start": "Get started now",
+      "contact": "Contact us",
+      "trial": "✓ No commitment · ✓ Cancel anytime"
+    },
+    "footer": {
+      "product": "Product",
+      "legal": "Legal",
+      "company": "Company",
+      "rights": "All rights reserved."
+    }
+  },
+  "language": {
+    "fr": "Français",
+    "en": "English",
+    "switch": "Switch language"
+  }
+}

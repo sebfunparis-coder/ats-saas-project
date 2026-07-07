@@ -1,0 +1,12 @@
+# robots.txt — ATS Ultimate (T-301, 2026-07-01)
+User-agent: *
+Allow: /
+Disallow: /app/
+Disallow: /superadmin/
+Disallow: /admin-login
+Disallow: /track/
+Disallow: /share/
+Disallow: /client-portal/
+Disallow: /availability/
+Sitemap: https://ats-ultimate.com/sitemap.xml
+Sitemap: https://ats-ultimate.com/sitemap-jobs.xml

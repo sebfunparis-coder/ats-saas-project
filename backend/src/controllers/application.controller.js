@@ -6,19 +6,16 @@
 
 import Application from '../models/Application.model.js';
 import Mission from '../models/Mission.model.js';
+import { broadcast } from '../utils/sseManager.js';
 import Candidate from '../models/Candidate.model.js';
+import Company from '../models/Company.model.js';
+import Event from '../models/Event.model.js';
 import { validationResult } from 'express-validator';
-
-/**
- * Custom error class
- */
-class AppError extends Error {
-  constructor(message, statusCode) {
-    super(message);
-    this.statusCode = statusCode;
-    this.isOperational = true;
-  }
-}
+import { AppError } from '../utils/AppError.js';
+import { successResponse, createdResponse, paginationMeta } from '../utils/response.js';
+import { scoreApplication as aiScoreApplication } from '../services/ai.service.js';
+import { triggerWebhookEvent } from '../services/webhook.service.js';
+import logger from '../utils/logger.js';
 
 // ===== CONTROLLERS =====
 
@@ -38,49 +35,31 @@ export const getAllApplications = async (req, res, next) => {
       limit = 50,
       skip = 0
     } = req.query;
+    const safeLimit = Math.min(parseInt(limit) || 20, 100);
+    const safeSkip = parseInt(skip) || 0;
 
-    // Construire le filtre
     const filter = { companyId };
 
-    if (status) {
-      filter.status = status;
-    }
+    if (status) filter.status = status;
+    if (missionId) filter.missionId = missionId;
+    if (candidateId) filter.candidateId = candidateId;
 
-    if (missionId) {
-      filter.missionId = missionId;
-    }
-
-    if (candidateId) {
-      filter.candidateId = candidateId;
-    }
-
-    // Construire le tri
     const sort = {};
     sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
-    // Exécuter la requête
-    const applications = await Application.find(filter)
-      .sort(sort)
-      .limit(parseInt(limit))
-      .skip(parseInt(skip))
-      .populate('missionId', 'title company status contract location')
-      .populate('candidateId', 'firstName lastName email position status rating cvUrl')
-      .populate('createdBy', 'firstName lastName email')
-      .lean();
+    const [applications, total] = await Promise.all([
+      Application.find(filter)
+        .sort(sort)
+        .limit(safeLimit)
+        .skip(safeSkip)
+        .populate('missionId', 'title company status contract location')
+        .populate('candidateId', 'firstName lastName email position status rating cvUrl')
+        .populate('createdBy', 'firstName lastName email')
+        .lean(),
+      Application.countDocuments(filter)
+    ]);
 
-    // Compter le total
-    const total = await Application.countDocuments(filter);
-
-    res.json({
-      success: true,
-      data: applications,
-      pagination: {
-        total,
-        limit: parseInt(limit),
-        skip: parseInt(skip),
-        hasMore: parseInt(skip) + parseInt(limit) < total
-      }
-    });
+    successResponse(res, applications, '', paginationMeta(total, Math.floor(safeSkip / safeLimit) + 1, safeLimit));
   } catch (error) {
     next(error);
   }
@@ -173,6 +152,19 @@ export const createApplication = async (req, res, next) => {
     await mission.addApplication(candidateId);
     await candidate.addApplication(application._id);
 
+    // T-378 : le catalogue de 15 événements (webhook.service.js) n'était
+    // déclenché par AUCUN controller — seul le "ping" manuel de test
+    // fonctionnait. Un client configurant un webhook ne recevait donc jamais
+    // aucun événement réel. Appel non bloquant (fire-and-forget) : une
+    // panne de livraison webhook ne doit jamais faire échouer la requête.
+    triggerWebhookEvent(companyId, 'application.created', {
+      applicationId: application._id,
+      missionId,
+      candidateId,
+      missionTitle: mission.title,
+      candidateName: candidate.fullName,
+    }).catch(err => logger.warn('Webhook application.created failed', { error: err.message }));
+
     res.status(201).json({
       success: true,
       data: application
@@ -261,7 +253,9 @@ export const deleteApplication = async (req, res, next) => {
       await candidate.removeApplication(id);
     }
 
-    await application.deleteOne();
+    application.isDeleted = true;
+    application.deletedAt = new Date();
+    await application.save();
 
     res.json({
       success: true,
@@ -286,7 +280,7 @@ export const updateApplicationStatus = async (req, res, next) => {
       throw new AppError('Le statut est requis', 400);
     }
 
-    const validStatuses = ['applied', 'screening', 'interview', 'offer', 'hired', 'rejected'];
+    const validStatuses = ['received', 'applied', 'screening', 'interview_1', 'interview_2', 'interview', 'offer', 'final', 'hired', 'rejected', 'archived'];
     if (!validStatuses.includes(status)) {
       throw new AppError('Statut invalide', 400);
     }
@@ -299,6 +293,25 @@ export const updateApplicationStatus = async (req, res, next) => {
 
     // Utiliser la méthode du model
     await application.updateStatus(status, userId);
+
+    // Notifier tous les clients SSE connectés pour cette company
+    broadcast(companyId, 'application:status', {
+      applicationId: String(application._id),
+      status,
+    });
+
+    // T-378 : webhooks — status_changed systématique, + événement dédié pour
+    // hired/rejected (catalogue WEBHOOK_EVENTS).
+    triggerWebhookEvent(companyId, 'application.status_changed', {
+      applicationId: application._id, status,
+    }).catch(err => logger.warn('Webhook application.status_changed failed', { error: err.message }));
+    if (status === 'hired') {
+      triggerWebhookEvent(companyId, 'application.hired', { applicationId: application._id })
+        .catch(err => logger.warn('Webhook application.hired failed', { error: err.message }));
+    } else if (status === 'rejected') {
+      triggerWebhookEvent(companyId, 'application.rejected', { applicationId: application._id })
+        .catch(err => logger.warn('Webhook application.rejected failed', { error: err.message }));
+    }
 
     res.json({
       success: true,
@@ -317,15 +330,15 @@ export const updateApplicationStatus = async (req, res, next) => {
 export const addInterview = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { companyId } = req.user;
-    const { type, scheduledAt, interviewer, notes } = req.body;
+    const { companyId, id: userId } = req.user;
+    const { type, scheduledAt, interviewer, notes, location, meetingLink } = req.body;
 
     // Validation
     if (!type || !scheduledAt) {
       throw new AppError('Type et date de l\'entretien sont requis', 400);
     }
 
-    const validTypes = ['phone', 'video', 'onsite', 'technical'];
+    const validTypes = ['interview', 'call', 'meeting', 'other'];
     if (!validTypes.includes(type)) {
       throw new AppError('Type d\'entretien invalide', 400);
     }
@@ -344,13 +357,86 @@ export const addInterview = async (req, res, next) => {
       outcome: 'pending'
     };
 
-    // Utiliser la méthode du model
     await application.addInterview(interviewData);
+
+    // T-378 : création automatique du lien visio (Zoom/Teams) et synchronisation
+    // calendrier (Google/Outlook) si la company a connecté ces intégrations —
+    // entièrement best-effort : une intégration non configurée (cas par défaut,
+    // `videoProvider: 'none'` / `integrationTokens: {}`) ne doit jamais faire
+    // échouer la planification de l'entretien elle-même.
+    const company = await Company.findById(companyId).select('integrationTokens videoProvider').lean();
+    const interviewForIntegrations = {
+      date: scheduledAt,
+      duration: 60,
+      location,
+      videoLink: meetingLink,
+      notes,
+    };
+    const candidateForIntegrations = { name: application.candidateName, email: application.candidateEmail };
+    const missionForIntegrations = { title: application.missionTitle };
+
+    let resolvedMeetingLink = meetingLink || null;
+    if (company?.videoProvider && company.videoProvider !== 'none') {
+      try {
+        const { createVideoMeeting } = await import('../services/videocall.service.js');
+        const tokens = company.videoProvider === 'teams' ? company.integrationTokens?.microsoftCalendar : null;
+        const meeting = await createVideoMeeting(company.videoProvider, tokens, interviewForIntegrations, candidateForIntegrations, missionForIntegrations);
+        if (meeting?.joinUrl) {
+          resolvedMeetingLink = meeting.joinUrl;
+          interviewForIntegrations.videoLink = meeting.joinUrl;
+        }
+      } catch (err) {
+        logger.warn('Création réunion vidéo échouée (entretien planifié quand même)', { provider: company.videoProvider, error: err.message });
+      }
+    }
+
+    // Create a linked Calendar Event so the interview appears in the calendar
+    const startDate = new Date(scheduledAt);
+    await Event.create({
+      title: `Entretien — ${application.candidateName}`,
+      description: `Mission : ${application.missionTitle}${notes ? '\n' + notes : ''}`,
+      type: 'interview',
+      startDate,
+      endDate: new Date(startDate.getTime() + 60 * 60 * 1000), // +1h default
+      location: location || null,
+      meetingLink: resolvedMeetingLink,
+      applicationId: application._id,
+      candidateId: application.candidateId,
+      missionId: application.missionId,
+      organizer: userId,
+      companyId,
+      status: 'scheduled'
+    });
+
+    if (company?.integrationTokens?.googleCalendar?.accessToken) {
+      try {
+        const { createGoogleCalendarEvent } = await import('../services/calendar.service.js');
+        await createGoogleCalendarEvent(company.integrationTokens.googleCalendar, interviewForIntegrations, candidateForIntegrations, missionForIntegrations);
+      } catch (err) {
+        logger.warn('Synchronisation Google Calendar échouée (entretien planifié quand même)', { error: err.message });
+      }
+    }
+    if (company?.integrationTokens?.microsoftCalendar?.accessToken) {
+      try {
+        const { createOutlookEvent } = await import('../services/calendar.service.js');
+        await createOutlookEvent(company.integrationTokens.microsoftCalendar, interviewForIntegrations, candidateForIntegrations, missionForIntegrations);
+      } catch (err) {
+        logger.warn('Synchronisation Outlook échouée (entretien planifié quand même)', { error: err.message });
+      }
+    }
+
+    triggerWebhookEvent(companyId, 'interview.scheduled', {
+      applicationId: application._id,
+      candidateName: application.candidateName,
+      missionTitle: application.missionTitle,
+      scheduledAt,
+      meetingLink: resolvedMeetingLink,
+    }).catch(err => logger.warn('Webhook interview.scheduled failed', { error: err.message }));
 
     res.status(201).json({
       success: true,
       data: application,
-      message: 'Entretien ajouté avec succès'
+      message: 'Entretien planifié avec succès'
     });
   } catch (error) {
     next(error);
@@ -614,6 +700,140 @@ export const getApplicationStats = async (req, res, next) => {
   }
 };
 
+/**
+ * PATCH /api/applications/:id/restore
+ */
+export const restoreApplication = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { companyId } = req.user;
+
+    // Fetch deleted application first to get missionId/candidateId for counter sync
+    const application = await Application.findOne(
+      { _id: id, companyId, isDeleted: true },
+      null,
+      { includeDeleted: true }
+    );
+    if (!application) {
+      throw new AppError('Candidature supprimée non trouvée', 404);
+    }
+
+    // Restore the record
+    await Application.updateOne(
+      { _id: id, companyId, isDeleted: true },
+      { $set: { isDeleted: false, deletedAt: null } }
+    );
+
+    // Re-sync Mission counter + candidateIds
+    await Mission.findByIdAndUpdate(
+      application.missionId,
+      { $inc: { applicationCount: 1 }, $addToSet: { candidateIds: application.candidateId } }
+    );
+
+    // Re-sync Candidate applicationIds
+    await Candidate.findByIdAndUpdate(
+      application.candidateId,
+      { $addToSet: { applicationIds: application._id } }
+    );
+
+    res.json({ success: true, message: 'Candidature restaurée avec succès' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/applications/:id/purge
+ */
+export const purgeApplication = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { companyId } = req.user;
+
+    const result = await Application.deleteOne({ _id: id, companyId, isDeleted: true });
+
+    if (result.deletedCount === 0) {
+      throw new AppError('Candidature supprimée non trouvée', 404);
+    }
+
+    res.json({ success: true, message: 'Candidature supprimée définitivement' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/applications/:id/score
+ * Lance le scoring IA de façon asynchrone.
+ * Retourne 202 immédiatement ; le résultat arrive via SSE (application:score).
+ */
+export const scoreApplication = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { companyId } = req.user;
+
+    const application = await Application.findOne({ _id: id, companyId })
+      .populate('missionId', 'title department location contract salary skills requirements')
+      .populate('candidateId', 'firstName lastName position experience skills languages location');
+
+    if (!application) throw new AppError('Candidature non trouvée', 404);
+
+    if (application.aiScoreStatus === 'pending') {
+      return res.json({ success: true, message: 'Calcul déjà en cours', aiScoreStatus: 'pending' });
+    }
+
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new AppError('ANTHROPIC_API_KEY non configurée — scoring IA indisponible', 503);
+    }
+
+    // Marquer comme en cours et répondre immédiatement
+    await Application.updateOne({ _id: id }, { aiScoreStatus: 'pending' });
+    broadcast(companyId, 'application:score', { applicationId: String(id), aiScoreStatus: 'pending' });
+
+    res.json({ success: true, message: 'Calcul en cours…', aiScoreStatus: 'pending' });
+
+    // Traitement asynchrone (hors cycle requête)
+    setImmediate(async () => {
+      try {
+        const result = await aiScoreApplication({
+          application: application.toObject(),
+          mission: application.missionId,
+          candidate: application.candidateId,
+        });
+
+        await Application.updateOne({ _id: id }, {
+          aiScore: result.score,
+          aiScoreStatus: 'done',
+          aiScoreAt: new Date(),
+          aiScoreDetails: {
+            skillsMatch: result.skillsMatch,
+            experienceMatch: result.experienceMatch,
+            locationMatch: result.locationMatch,
+            salaryMatch: result.salaryMatch,
+            justification: result.justification,
+            strengths: result.strengths,
+            concerns: result.concerns,
+          },
+        });
+
+        broadcast(companyId, 'application:score', {
+          applicationId: String(id),
+          aiScore: result.score,
+          aiScoreStatus: 'done',
+          aiScoreAt: new Date().toISOString(),
+          aiScoreDetails: result,
+        });
+      } catch (err) {
+        logger.error('scoreApplication: erreur IA', { error: err.message, applicationId: id });
+        await Application.updateOne({ _id: id }, { aiScoreStatus: 'error' });
+        broadcast(companyId, 'application:score', { applicationId: String(id), aiScoreStatus: 'error' });
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Export default pour compatibilité
 export default {
   getAllApplications,
@@ -621,6 +841,8 @@ export default {
   createApplication,
   updateApplication,
   deleteApplication,
+  restoreApplication,
+  purgeApplication,
   updateApplicationStatus,
   addInterview,
   updateInterview,
@@ -628,5 +850,6 @@ export default {
   hireCandidate,
   makeOffer,
   getPipeline,
-  getApplicationStats
+  getApplicationStats,
+  scoreApplication,
 };

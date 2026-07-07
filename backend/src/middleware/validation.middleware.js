@@ -161,18 +161,36 @@ export const validateApplication = [
   body('salaryExpectation')
     .optional()
     .isInt({ min: 0 })
-    .withMessage('Le salaire doit être un nombre positif')
+    .withMessage('Le salaire doit être un nombre positif'),
+  body('status')
+    .optional()
+    .isIn(['received', 'applied', 'screening', 'interview_1', 'interview_2', 'offer', 'final', 'hired', 'rejected', 'archived'])
+    .withMessage('Statut de candidature invalide'),
+];
+
+// Statuts complets du pipeline Kanban (synchronisés avec le frontend)
+const APPLICATION_STATUSES = [
+  'received',    // Alias de 'applied' — statut initial depuis le portail candidat
+  'applied',
+  'screening',
+  'interview_1',
+  'interview_2',
+  'offer',
+  'final',
+  'hired',
+  'rejected',
+  'archived',
 ];
 
 export const validateApplicationStatus = [
   body('status')
-    .isIn(['applied', 'screening', 'interview', 'offer', 'hired', 'rejected'])
-    .withMessage('Statut invalide')
+    .isIn(APPLICATION_STATUSES)
+    .withMessage(`Statut invalide. Valeurs acceptées : ${APPLICATION_STATUSES.join(', ')}`)
 ];
 
 export const validateInterview = [
   body('type')
-    .isIn(['phone', 'video', 'onsite', 'technical'])
+    .isIn(['interview', 'call', 'meeting', 'other'])
     .withMessage('Type d\'entretien invalide'),
   body('scheduledAt')
     .isISO8601()
@@ -301,14 +319,31 @@ export const validateUser = [
     .withMessage('Le nom doit contenir entre 2 et 50 caractères'),
   body('role')
     .optional()
-    .isIn(['user', 'admin', 'superadmin'])
+    // T-401 : n'incluait pas 'recruiter'/'manager', alors que ce sont deux
+    // valeurs réelles de l'enum User.model.js (role) — un admin ne pouvait
+    // légitimement assigner que 'user'/'admin'/'superadmin' via cette API.
+    .isIn(['user', 'recruiter', 'manager', 'admin', 'superadmin'])
     .withMessage('Rôle invalide')
 ];
 
 export const validateUserRole = [
   body('role')
-    .isIn(['user', 'admin', 'superadmin'])
+    .isIn(['user', 'recruiter', 'manager', 'admin', 'superadmin'])
     .withMessage('Rôle invalide')
+];
+
+export const validateForgotPassword = [
+  body('email')
+    .isEmail()
+    .withMessage('Email invalide')
+    .normalizeEmail()
+];
+
+export const validateResendVerification = [
+  body('email')
+    .isEmail()
+    .withMessage('Email invalide')
+    .normalizeEmail()
 ];
 
 export const validateResetPassword = [
@@ -346,6 +381,8 @@ export default {
   validateRegister,
   validateLogin,
   validateChangePassword,
+  validateForgotPassword,
+  validateResendVerification,
   // Mission
   validateMission,
   // Candidate

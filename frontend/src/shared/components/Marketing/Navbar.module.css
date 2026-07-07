@@ -1,0 +1,224 @@
+/**
+ * Navbar CSS Module - Responsive avec menu hamburger mobile
+ */
+
+.navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 16px 0;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+.container {
+  max-width: var(--container-2xl);
+  margin: 0 auto;
+  padding: 0 clamp(20px, 4vw, 40px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Logo */
+.logoContainer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  z-index: 101;
+}
+
+.logoIcon {
+  font-size: clamp(24px, 4vw, 32px);
+}
+
+.logoText {
+  font-size: clamp(18px, 3vw, 22px);
+  font-weight: var(--font-weight-extrabold);
+  background: linear-gradient(135deg, #667EEA 0%, #FF6B9D 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Hamburger Button (Mobile only) */
+.hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  z-index: 101;
+}
+
+.hamburgerLine {
+  width: 25px;
+  height: 3px;
+  background: #667EEA;
+  border-radius: 2px;
+  transition: var(--transition-base);
+}
+
+.hamburger.open .hamburgerLine:nth-child(1) {
+  transform: translateY(8px) rotate(45deg);
+}
+
+.hamburger.open .hamburgerLine:nth-child(2) {
+  opacity: 0;
+}
+
+.hamburger.open .hamburgerLine:nth-child(3) {
+  transform: translateY(-8px) rotate(-45deg);
+}
+
+/* Navigation Links */
+.navLinks {
+  display: flex;
+  gap: clamp(16px, 3vw, 32px);
+  align-items: center;
+}
+
+.navLink {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: clamp(13px, 2vw, 14px);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-gray-600);
+  transition: var(--transition-fast);
+  white-space: nowrap;
+}
+
+.navLink.active {
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+}
+
+.navLink:hover {
+  color: var(--color-primary);
+}
+
+.loginButton {
+  padding: clamp(8px, 1.5vw, 10px) clamp(16px, 3vw, 24px);
+  background: transparent;
+  color: var(--color-primary);
+  border: 2px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: var(--font-weight-bold);
+  font-size: clamp(13px, 2vw, 14px);
+  transition: var(--transition-base);
+  white-space: nowrap;
+}
+
+.loginButton:hover {
+  background: var(--color-primary);
+  color: white;
+}
+
+.ctaButton {
+  padding: clamp(8px, 1.5vw, 10px) clamp(16px, 3vw, 24px);
+  background: linear-gradient(135deg, #667EEA 0%, #FF6B9D 100%);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: var(--font-weight-bold);
+  font-size: clamp(13px, 2vw, 14px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  transition: var(--transition-base);
+  white-space: nowrap;
+}
+
+.ctaButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.5);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .hamburger {
+    display: flex;
+  }
+
+  .navLinks {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 280px;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(20px);
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 80px 24px 24px;
+    gap: 20px;
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.1);
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+  }
+
+  .navLinks.open {
+    transform: translateX(0);
+  }
+
+  .navLink {
+    font-size: 16px;
+    width: 100%;
+    text-align: left;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  }
+
+  .loginButton {
+    width: 100%;
+    padding: 14px 24px;
+    font-size: 16px;
+    margin-top: 8px;
+  }
+
+  .ctaButton {
+    width: 100%;
+    padding: 14px 24px;
+    font-size: 16px;
+    margin-top: 8px;
+  }
+}
+
+/* Overlay pour fermer le menu mobile */
+.overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 99;
+}
+
+.overlay.visible {
+  display: block;
+}
+
+/* Accessibilité */
+@media (prefers-reduced-motion: reduce) {
+  .hamburgerLine,
+  .navLinks,
+  .navLink,
+  .loginButton,
+  .ctaButton {
+    transition: none;
+  }
+
+  .ctaButton:hover {
+    transform: none;
+  }
+}

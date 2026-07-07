@@ -6,7 +6,7 @@
 
 import express from 'express';
 import * as missionController from '../controllers/mission.controller.js';
-import { protect } from '../middleware/auth.middleware.js';
+import { protect, authorize } from '../middleware/auth.middleware.js';
 import { validateMission, validateMongoId } from '../middleware/validation.middleware.js';
 
 const router = express.Router();
@@ -29,6 +29,23 @@ router.get('/', missionController.getAllMissions);
 router.get('/stats', missionController.getMissionStats);
 
 /**
+ * DELETE /api/missions/bulk
+ * Soft-delete plusieurs missions en une requête
+ */
+router.delete('/bulk', authorize('admin', 'manager', 'superadmin'), missionController.bulkDeleteMissions);
+
+/**
+ * PUT /api/missions/bulk/status
+ * Changement de statut bulk
+ * T-374 : contrairement à DELETE /bulk (ligne 35), cette route n'avait
+ * aucune restriction de rôle — n'importe quel utilisateur authentifié de la
+ * company pouvait forcer le statut de n'importe quelles missions, y compris
+ * publier une mission (status:'active') en contournant le workflow
+ * d'approbation réservé à ces rôles.
+ */
+router.put('/bulk/status', authorize('admin', 'manager', 'superadmin'), missionController.bulkUpdateMissionsStatus);
+
+/**
  * GET /api/missions/:id
  * Récupérer une mission par ID
  */
@@ -48,9 +65,27 @@ router.put('/:id', validateMongoId, validateMission, missionController.updateMis
 
 /**
  * DELETE /api/missions/:id
- * Supprimer une mission
+ * Soft-delete une mission
+ * T-341 : alignée sur la même restriction de rôle que /bulk (ligne 35) — sans
+ * cela, un rôle non élevé contournait la restriction du bulk en supprimant une
+ * par une.
  */
-router.delete('/:id', validateMongoId, missionController.deleteMission);
+router.delete('/:id', authorize('admin', 'manager', 'superadmin'), validateMongoId, missionController.deleteMission);
+
+/**
+ * PATCH /api/missions/:id/restore
+ * Restaurer une mission soft-deleted
+ * T-375 : le contrôleur documente "(admin uniquement)" mais la route n'avait
+ * aucune restriction de rôle — alignée sur purge (ligne 85), même niveau
+ * d'accès attendu pour ces deux opérations de récupération/suppression.
+ */
+router.patch('/:id/restore', authorize('admin', 'superadmin'), validateMongoId, missionController.restoreMission);
+
+/**
+ * DELETE /api/missions/:id/purge
+ * Suppression définitive (RGPD)
+ */
+router.delete('/:id/purge', authorize('admin', 'superadmin'), validateMongoId, missionController.purgeMission);
 
 // ===== ACTIONS =====
 
@@ -79,6 +114,24 @@ router.post('/:id/pause', validateMongoId, missionController.pauseMission);
 router.post('/:id/resume', validateMongoId, missionController.resumeMission);
 
 // ===== RELATIONS =====
+
+/**
+ * POST /api/missions/:id/request-approval
+ * Soumettre une mission draft pour validation (recruteurs)
+ */
+router.post('/:id/request-approval', validateMongoId, missionController.requestApproval);
+
+/**
+ * POST /api/missions/:id/approve
+ * Approuver une mission en attente (admin/manager/superadmin)
+ */
+router.post('/:id/approve', authorize('admin', 'manager', 'superadmin'), validateMongoId, missionController.approveMission);
+
+/**
+ * POST /api/missions/:id/reject
+ * Rejeter une mission en attente avec commentaire (admin/manager/superadmin)
+ */
+router.post('/:id/reject', authorize('admin', 'manager', 'superadmin'), validateMongoId, missionController.rejectMission);
 
 /**
  * GET /api/missions/:id/applications

@@ -4,19 +4,39 @@
  * Gère les événements (calendrier) : CRUD, participants, reminders, interviews
  */
 
+import mongoose from 'mongoose';
+import crypto from 'crypto';
 import Event from '../models/Event.model.js';
 import { validationResult } from 'express-validator';
+import { AppError } from '../utils/AppError.js';
+import { successResponse, createdResponse, paginationMeta } from '../utils/response.js';
 
-/**
- * Custom error class
- */
-class AppError extends Error {
-  constructor(message, statusCode) {
-    super(message);
-    this.statusCode = statusCode;
-    this.isOperational = true;
-  }
-}
+const useMockDB = () => mongoose.connection.readyState !== 1;
+
+// In-memory mock store for development without MongoDB
+const _mockEvents = [];
+
+const mockEventOps = {
+  getAll: (companyId) => _mockEvents.filter(e => e.companyId === companyId),
+  getById: (id, companyId) => _mockEvents.find(e => e._id === id && e.companyId === companyId),
+  create: (data) => {
+    const event = { ...data, _id: crypto.randomBytes(12).toString('hex'), createdAt: new Date(), updatedAt: new Date() };
+    _mockEvents.push(event);
+    return event;
+  },
+  update: (id, companyId, updates) => {
+    const idx = _mockEvents.findIndex(e => e._id === id && e.companyId === companyId);
+    if (idx === -1) return null;
+    _mockEvents[idx] = { ..._mockEvents[idx], ...updates, updatedAt: new Date() };
+    return _mockEvents[idx];
+  },
+  delete: (id, companyId) => {
+    const idx = _mockEvents.findIndex(e => e._id === id && e.companyId === companyId);
+    if (idx === -1) return false;
+    _mockEvents.splice(idx, 1);
+    return true;
+  },
+};
 
 // ===== CONTROLLERS =====
 
@@ -27,6 +47,12 @@ class AppError extends Error {
 export const getAllEvents = async (req, res, next) => {
   try {
     const { companyId } = req.user;
+
+    if (useMockDB()) {
+      const events = mockEventOps.getAll(String(companyId));
+      return successResponse(res, events, '', paginationMeta(events.length, 1, 200));
+    }
+
     const {
       type,
       status,
@@ -39,62 +65,39 @@ export const getAllEvents = async (req, res, next) => {
       limit = 100,
       skip = 0
     } = req.query;
+    const safeLimit = Math.min(parseInt(limit) || 50, 200);
+    const safeSkip = parseInt(skip) || 0;
 
-    // Construire le filtre
     const filter = { companyId };
 
-    if (type) {
-      filter.type = type;
-    }
-
-    if (status) {
-      filter.status = status;
-    }
-
-    if (missionId) {
-      filter.missionId = missionId;
-    }
-
-    if (candidateId) {
-      filter.candidateId = candidateId;
-    }
-
-    // Filtrer par plage de dates
+    if (type) filter.type = type;
+    if (status) filter.status = status;
+    if (missionId) filter.missionId = missionId;
+    if (candidateId) filter.candidateId = candidateId;
     if (startDate || endDate) {
       filter.startDate = {};
       if (startDate) filter.startDate.$gte = new Date(startDate);
       if (endDate) filter.startDate.$lte = new Date(endDate);
     }
 
-    // Construire le tri
     const sort = {};
     sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
-    // Exécuter la requête
-    const events = await Event.find(filter)
-      .sort(sort)
-      .limit(parseInt(limit))
-      .skip(parseInt(skip))
-      .populate('organizer', 'firstName lastName email avatar')
-      .populate('participants.user', 'firstName lastName email')
-      .populate('missionId', 'title')
-      .populate('candidateId', 'firstName lastName email')
-      .populate('applicationId', 'status')
-      .lean();
+    const [events, total] = await Promise.all([
+      Event.find(filter)
+        .sort(sort)
+        .limit(safeLimit)
+        .skip(safeSkip)
+        .populate('organizer', 'firstName lastName email avatar')
+        .populate('participants.user', 'firstName lastName email')
+        .populate('missionId', 'title')
+        .populate('candidateId', 'firstName lastName email')
+        .populate('applicationId', 'status')
+        .lean(),
+      Event.countDocuments(filter)
+    ]);
 
-    // Compter le total
-    const total = await Event.countDocuments(filter);
-
-    res.json({
-      success: true,
-      data: events,
-      pagination: {
-        total,
-        limit: parseInt(limit),
-        skip: parseInt(skip),
-        hasMore: parseInt(skip) + parseInt(limit) < total
-      }
-    });
+    successResponse(res, events, '', paginationMeta(total, Math.floor(safeSkip / safeLimit) + 1, safeLimit));
   } catch (error) {
     next(error);
   }
@@ -136,6 +139,23 @@ export const getEventById = async (req, res, next) => {
  */
 export const createEvent = async (req, res, next) => {
   try {
+    const { companyId, id: userId } = req.user;
+
+    if (useMockDB()) {
+      const eventData = {
+        ...req.body,
+        companyId: String(companyId),
+        organizer: String(userId),
+        status: 'scheduled',
+      };
+      if (!eventData.endDate && eventData.startDate) {
+        const start = new Date(eventData.startDate);
+        eventData.endDate = new Date(start.getTime() + 60 * 60 * 1000).toISOString();
+      }
+      const event = mockEventOps.create(eventData);
+      return res.status(201).json({ success: true, data: event });
+    }
+
     // Validation
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -145,8 +165,6 @@ export const createEvent = async (req, res, next) => {
       });
     }
 
-    const { companyId, id: userId } = req.user;
-
     const eventData = {
       ...req.body,
       companyId,
@@ -154,10 +172,9 @@ export const createEvent = async (req, res, next) => {
       status: 'scheduled'
     };
 
-    // Si endDate non fourni, calculer (startDate + 1 heure)
     if (!eventData.endDate && eventData.startDate) {
       const start = new Date(eventData.startDate);
-      eventData.endDate = new Date(start.getTime() + 60 * 60 * 1000); // +1 heure
+      eventData.endDate = new Date(start.getTime() + 60 * 60 * 1000);
     }
 
     const event = await Event.create(eventData);
@@ -179,6 +196,12 @@ export const updateEvent = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { companyId } = req.user;
+
+    if (useMockDB()) {
+      const updated = mockEventOps.update(id, String(companyId), req.body);
+      if (!updated) return next(new AppError('Événement non trouvé', 404));
+      return res.json({ success: true, data: updated });
+    }
 
     // Validation
     const errors = validationResult(req);
@@ -234,6 +257,12 @@ export const deleteEvent = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { companyId } = req.user;
+
+    if (useMockDB()) {
+      const deleted = mockEventOps.delete(id, String(companyId));
+      if (!deleted) return next(new AppError('Événement non trouvé', 404));
+      return res.json({ success: true, message: 'Événement supprimé avec succès' });
+    }
 
     const event = await Event.findOne({ _id: id, companyId });
 
@@ -590,6 +619,7 @@ export const getUpcomingEvents = async (req, res, next) => {
   try {
     const { companyId } = req.user;
     const { limit = 10 } = req.query;
+    const safeLimit = Math.min(parseInt(limit) || 10, 50);
 
     const now = new Date();
 
@@ -599,7 +629,7 @@ export const getUpcomingEvents = async (req, res, next) => {
       status: { $in: ['scheduled', 'rescheduled'] }
     })
       .sort({ startDate: 1 })
-      .limit(parseInt(limit))
+      .limit(safeLimit)
       .populate('organizer', 'firstName lastName')
       .populate('candidateId', 'firstName lastName position')
       .populate('missionId', 'title')

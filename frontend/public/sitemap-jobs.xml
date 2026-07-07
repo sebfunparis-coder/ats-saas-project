@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- T-301 : Ce fichier sera remplacé par un endpoint dynamique /api/sitemap-jobs.xml
+     qui listera toutes les missions status=open depuis Supabase avec JobPosting schema.
+     En attendant ce placeholder liste les URLs génériques du portail carrières. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
+          http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+  <!-- Les URLs des portails carrières sont de la forme /careers/:companyId -->
+  <!-- Ce sitemap sera généré dynamiquement côté backend une fois déployé -->
+</urlset>

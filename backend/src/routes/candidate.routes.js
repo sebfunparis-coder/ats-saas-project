@@ -6,7 +6,7 @@
 
 import express from 'express';
 import * as candidateController from '../controllers/candidate.controller.js';
-import { protect } from '../middleware/auth.middleware.js';
+import { protect, authorize } from '../middleware/auth.middleware.js';
 import { validateCandidate, validateMongoId } from '../middleware/validation.middleware.js';
 
 const router = express.Router();
@@ -35,6 +35,20 @@ router.get('/stats', candidateController.getCandidateStats);
 router.post('/import', candidateController.importCandidates);
 
 /**
+ * DELETE /api/candidates/bulk
+ * Soft-delete plusieurs candidats en une requête
+ */
+router.delete('/bulk', authorize('admin', 'manager', 'superadmin'), candidateController.bulkDeleteCandidates);
+
+/**
+ * PUT /api/candidates/bulk/status
+ * Changement de statut bulk
+ * T-374 : même correctif que missions bulk/status — restriction de rôle
+ * manquante, alignée sur DELETE /bulk (ligne 41).
+ */
+router.put('/bulk/status', authorize('admin', 'manager', 'superadmin'), candidateController.bulkUpdateCandidatesStatus);
+
+/**
  * GET /api/candidates/:id
  * Récupérer un candidat par ID
  */
@@ -54,9 +68,24 @@ router.put('/:id', validateMongoId, validateCandidate, candidateController.updat
 
 /**
  * DELETE /api/candidates/:id
- * Supprimer un candidat
+ * Soft-delete un candidat
+ * T-341 : alignée sur la même restriction de rôle que /bulk (ligne 41) — sans
+ * cela, un rôle non élevé contournait la restriction du bulk en supprimant un
+ * par un.
  */
-router.delete('/:id', validateMongoId, candidateController.deleteCandidate);
+router.delete('/:id', authorize('admin', 'manager', 'superadmin'), validateMongoId, candidateController.deleteCandidate);
+
+/**
+ * PATCH /api/candidates/:id/restore
+ * Restaurer un candidat soft-deleted
+ */
+router.patch('/:id/restore', validateMongoId, candidateController.restoreCandidate);
+
+/**
+ * DELETE /api/candidates/:id/purge
+ * Suppression définitive (RGPD)
+ */
+router.delete('/:id/purge', authorize('admin', 'superadmin'), validateMongoId, candidateController.purgeCandidate);
 
 // ===== ACTIONS =====
 

@@ -4,19 +4,22 @@
  * Gère les membres de l'équipe : CRUD, permissions, stats, performance
  */
 
+import crypto from 'crypto';
 import TeamMember from '../models/Team.model.js';
 import User from '../models/User.model.js';
+import Company from '../models/Company.model.js';
 import { validationResult } from 'express-validator';
+import { AppError } from '../utils/AppError.js';
+import { successResponse, createdResponse, paginationMeta } from '../utils/response.js';
+import { triggerWebhookEvent } from '../services/webhook.service.js';
+import logger from '../utils/logger.js';
 
-/**
- * Custom error class
- */
-class AppError extends Error {
-  constructor(message, statusCode) {
-    super(message);
-    this.statusCode = statusCode;
-    this.isOperational = true;
-  }
+// T-376 : génère un mot de passe temporaire aléatoire (au lieu du littéral
+// 'TempPassword123!' identique pour tous les comptes sur toutes les
+// companies) — 16 caractères hex, largement au-dessus des exigences de
+// complexité habituelles.
+function generateTempPassword() {
+  return crypto.randomBytes(12).toString('hex');
 }
 
 // ===== CONTROLLERS =====
@@ -36,43 +39,28 @@ export const getAllTeamMembers = async (req, res, next) => {
       limit = 50,
       skip = 0
     } = req.query;
+    const safeLimit = Math.min(parseInt(limit) || 20, 100);
+    const safeSkip = parseInt(skip) || 0;
 
-    // Construire le filtre
     const filter = { companyId };
 
-    if (role) {
-      filter.role = role;
-    }
+    if (role) filter.role = role;
+    if (active !== undefined) filter.active = active === 'true';
 
-    if (active !== undefined) {
-      filter.active = active === 'true';
-    }
-
-    // Construire le tri
     const sort = {};
     sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
-    // Exécuter la requête
-    const teamMembers = await TeamMember.find(filter)
-      .sort(sort)
-      .limit(parseInt(limit))
-      .skip(parseInt(skip))
-      .populate('userId', 'email avatar isActive lastLogin')
-      .lean();
+    const [teamMembers, total] = await Promise.all([
+      TeamMember.find(filter)
+        .sort(sort)
+        .limit(safeLimit)
+        .skip(safeSkip)
+        .populate('userId', 'email avatar isActive lastLogin')
+        .lean(),
+      TeamMember.countDocuments(filter)
+    ]);
 
-    // Compter le total
-    const total = await TeamMember.countDocuments(filter);
-
-    res.json({
-      success: true,
-      data: teamMembers,
-      pagination: {
-        total,
-        limit: parseInt(limit),
-        skip: parseInt(skip),
-        hasMore: parseInt(skip) + parseInt(limit) < total
-      }
-    });
+    successResponse(res, teamMembers, '', paginationMeta(total, Math.floor(safeSkip / safeLimit) + 1, safeLimit));
   } catch (error) {
     next(error);
   }
@@ -134,21 +122,33 @@ export const createTeamMember = async (req, res, next) => {
       throw new AppError('Un utilisateur avec cet email existe déjà', 400);
     }
 
-    // Vérifier limites du plan (à implémenter avec Company.canAddUser())
-    // const company = await Company.findById(companyId);
-    // if (!company.canAddUser()) {
-    //   throw new AppError('Limite d\'utilisateurs atteinte pour votre plan', 403);
-    // }
+    // T-335 : Company.canAddUser() existait déjà sur le modèle mais n'était
+    // jamais appelé.
+    const company = await Company.findById(companyId);
+    if (company && !company.canAddUser()) {
+      throw new AppError('Limite d\'utilisateurs atteinte pour votre plan', 403);
+    }
 
-    // Créer l'utilisateur d'abord
+    // T-376 : mot de passe temporaire aléatoire (au lieu d'un littéral
+    // identique pour tous les comptes) + mustChangePassword pour forcer son
+    // remplacement à la première connexion.
+    const temporaryPassword = generateTempPassword();
     const user = await User.create({
       email,
-      password: 'TempPassword123!', // Mot de passe temporaire (à changer au premier login)
+      password: temporaryPassword,
       firstName,
       lastName,
       companyId,
-      role: role === 'Admin' ? 'admin' : 'user'
+      role: role === 'Admin' ? 'admin' : 'user',
+      mustChangePassword: true,
     });
+
+    // canAddUser() compte sur company.userIds — le tenir à jour ici (comme le
+    // fait déjà auth.controller.js pour l'inscription).
+    if (company) {
+      company.userIds.push(user._id);
+      await company.save();
+    }
 
     // Créer le team member
     const teamMemberData = {
@@ -168,10 +168,22 @@ export const createTeamMember = async (req, res, next) => {
     user.teamMemberId = teamMember._id;
     await user.save();
 
+    triggerWebhookEvent(companyId, 'team.member_added', {
+      teamMemberId: teamMember._id,
+      firstName,
+      lastName,
+      email,
+      role,
+    }).catch(err => logger.warn('Webhook team.member_added failed', { error: err.message }));
+
+    // T-376 : plus aucun email n'est réellement envoyé depuis ce backend
+    // (hors de portée de cet environnement) — le message ne doit donc plus
+    // le prétendre. Le mot de passe temporaire généré est renvoyé une seule
+    // fois dans cette réponse, à communiquer manuellement au nouveau membre.
     res.status(201).json({
       success: true,
-      data: teamMember,
-      message: 'Membre de l\'équipe créé avec succès. Un email avec les identifiants a été envoyé.'
+      data: { ...teamMember.toObject(), temporaryPassword },
+      message: 'Membre de l\'équipe créé avec succès. Communiquez-lui ce mot de passe temporaire — il devra le changer à sa première connexion.'
     });
   } catch (error) {
     next(error);
@@ -268,6 +280,11 @@ export const deleteTeamMember = async (req, res, next) => {
     teamMember.active = false;
     await teamMember.save();
 
+    triggerWebhookEvent(companyId, 'team.member_removed', {
+      teamMemberId: teamMember._id,
+      email: teamMember.email,
+    }).catch(err => logger.warn('Webhook team.member_removed failed', { error: err.message }));
+
     res.json({
       success: true,
       message: 'Membre de l\'équipe désactivé avec succès'
@@ -322,12 +339,23 @@ export const updatePermissions = async (req, res, next) => {
 export const recordActivity = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { companyId } = req.user;
+    const { companyId, id: userId, role } = req.user;
 
     const teamMember = await TeamMember.findOne({ _id: id, companyId });
 
     if (!teamMember) {
       throw new AppError('Membre de l\'équipe non trouvé', 404);
+    }
+
+    // T-399 : aucune restriction n'existait — n'importe quel utilisateur
+    // authentifié de la company pouvait modifier l'activité/les stats de
+    // n'importe quel collègue. Autorisé pour admin/manager (pilotage
+    // d'équipe) ou pour l'intéressé lui-même (cas d'usage réel documenté :
+    // "appelé automatiquement lors d'actions", donc par l'utilisateur qui
+    // vient d'agir sur son propre compte).
+    const isSelf = teamMember.userId && String(teamMember.userId) === String(userId);
+    if (!isSelf && !['admin', 'manager', 'superadmin'].includes(role)) {
+      throw new AppError('Droits insuffisants pour modifier l\'activité de ce membre', 403);
     }
 
     // Utiliser la méthode du model
@@ -350,7 +378,7 @@ export const incrementStat = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { stat, value = 1 } = req.body;
-    const { companyId } = req.user;
+    const { companyId, id: userId, role } = req.user;
 
     if (!stat) {
       throw new AppError('Le nom de la statistique est requis', 400);
@@ -373,6 +401,15 @@ export const incrementStat = async (req, res, next) => {
 
     if (!teamMember) {
       throw new AppError('Membre de l\'équipe non trouvé', 404);
+    }
+
+    // T-399 : mêmes droits que recordActivity — sans ce garde, n'importe quel
+    // utilisateur authentifié de la company pouvait gonfler/dégonfler les
+    // statistiques (placements, revenue...) de n'importe quel collègue,
+    // des chiffres qui alimentent potentiellement des évaluations de perf.
+    const isSelf = teamMember.userId && String(teamMember.userId) === String(userId);
+    if (!isSelf && !['admin', 'manager', 'superadmin'].includes(role)) {
+      throw new AppError('Droits insuffisants pour modifier les statistiques de ce membre', 403);
     }
 
     // Utiliser la méthode du model
