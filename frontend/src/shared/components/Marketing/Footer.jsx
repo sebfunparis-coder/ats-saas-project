@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/config/routes';
 import { openCookiePreferences } from '@/core/utils/cookieConsent';
+import { LinkedInIcon, XIcon, FacebookIcon, InstagramIcon } from './SocialIcons';
 import styles from './Footer.module.css';
 
 /**
@@ -14,11 +15,16 @@ import styles from './Footer.module.css';
 export function Footer({ variant = 'dark' }) {
   const navigate = useNavigate();
 
+  // T-433 : remplace les emojis approximatifs (🔵/🐦/📘/📸, sans rapport
+  // visuel avec les vraies marques) par les logos officiels — 🐦 pour
+  // "Twitter" était en plus visuellement obsolète depuis le rebranding en X
+  // (2023). Liens toujours génériques (pages d'accueil des plateformes) tant
+  // qu'aucun vrai compte n'existe pour ce projet.
   const socialLinks = [
-    ['🔵', 'LinkedIn', 'https://linkedin.com'],
-    ['🐦', 'Twitter', 'https://twitter.com'],
-    ['📘', 'Facebook', 'https://facebook.com'],
-    ['📸', 'Instagram', 'https://instagram.com']
+    [<LinkedInIcon />, 'LinkedIn', 'https://linkedin.com'],
+    [<XIcon />, 'X', 'https://x.com'],
+    [<FacebookIcon />, 'Facebook', 'https://facebook.com'],
+    [<InstagramIcon />, 'Instagram', 'https://instagram.com']
   ];
 
   const productLinks = [
