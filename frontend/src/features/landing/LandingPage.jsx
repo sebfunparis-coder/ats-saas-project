@@ -82,6 +82,11 @@ export function LandingPage() {
             <p className={styles.heroDescription}>
               L'intelligence artificielle au service de vos recrutements. Automatisez, optimisez et trouvez le candidat parfait en quelques clics. 🎯
             </p>
+            <div className={styles.heroCTA}>
+              <button className={styles.heroButton} onClick={() => navigate(ROUTES.REGISTER)}>
+                🚀 Démarrer gratuitement
+              </button>
+            </div>
             <div className={styles.heroStats}>
               {[['⚡ 10x', 'Plus rapide'], ['🎯 87%', 'Match IA'], ['🌟 500+', 'Clients']].map(([num, label], i) => (
                 <div key={i} className={styles.heroStat}>

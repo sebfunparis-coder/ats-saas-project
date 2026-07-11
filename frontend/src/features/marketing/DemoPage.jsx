@@ -129,18 +129,29 @@ export function DemoPage() {
       <Navbar />
 
       <div className={styles.hero}>
-        <span className={styles.liveBadge}>● Live Demo</span>
-        <h1 className={styles.heroTitle}>Voyez l'app en action</h1>
-        <p className={styles.heroSub}>
-          Vous en avez mare des CVs papier éparpillés et empilé sur votre bureau ? <br />
-          Nous avons la solution !
-        </p>
-        <button
-          className={styles.heroBtn}
-          onClick={() => navigate(`${ROUTES.CONTACT}?sujet=demo`)}
-        >
-          🎥 Demander une démo
-        </button>
+        {['🚀', '⚡', '✨', '🎯'].map((emoji, i) => (
+          <div
+            key={i}
+            className={styles.floatingEmoji}
+            style={{ animationDelay: `${i * 0.5}s`, left: `${10 + i * 25}%`, top: `${18 + (i % 2) * 45}%` }}
+          >
+            {emoji}
+          </div>
+        ))}
+        <div className={styles.heroInner}>
+          <span className={styles.liveBadge}>● Live Demo</span>
+          <h1 className={styles.heroTitle}>Voyez l'app en action</h1>
+          <p className={styles.heroSub}>
+            Vous en avez mare des CVs papier éparpillés et empilé sur votre bureau ? <br />
+            Nous avons la solution !
+          </p>
+          <button
+            className={styles.heroBtn}
+            onClick={() => navigate(`${ROUTES.CONTACT}?sujet=demo`)}
+          >
+            🎥 Demander une démo
+          </button>
+        </div>
       </div>
 
       {/* App Shell */}

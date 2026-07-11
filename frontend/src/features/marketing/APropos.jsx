@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/config/routes';
 import { SEO } from '@/shared/components/SEO';
+import { Navbar, Footer } from '@/shared/components/Marketing';
 
 /**
  * Page À Propos
@@ -21,6 +22,7 @@ export function APropos() {
         description="Découvrez la mission d'ATS Ultimate : simplifier et accélérer le recrutement grâce à l'intelligence artificielle."
         url="https://ats-ultimate.com/a-propos"
       />
+      <Navbar />
       <div style={maxWidthStyles}>
         <button onClick={() => navigate(ROUTES.LANDING)} style={{ marginBottom: '32px', padding: '12px 24px', background: '#EEF2FF', color: '#667EEA', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: '700', fontSize: '14px' }}>
           ← Retour à l'accueil
@@ -114,6 +116,7 @@ export function APropos() {
           </div>
         </div>
       </div>
+      <Footer variant="light" />
     </div>
   );
 }

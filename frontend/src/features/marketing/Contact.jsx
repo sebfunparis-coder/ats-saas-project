@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ROUTES } from '@/config/routes';
 import { supabase } from '@/services/supabase';
 import { SEO } from '@/shared/components/SEO';
+import { Navbar, Footer } from '@/shared/components/Marketing';
 
 // T-295 — Formulaire contact → CRM
 // Stockage principal : table Supabase `contact_requests` (consultable dans
@@ -83,6 +84,7 @@ export function Contact() {
         description="Contactez l'équipe ATS Ultimate pour une démo, une question tarifaire ou un partenariat."
         url="https://ats-ultimate.com/contact"
       />
+      <Navbar />
       <div style={maxWidthStyles}>
         <button onClick={() => navigate(ROUTES.LANDING)} style={{ marginBottom: '32px', padding: '12px 24px', background: '#EEF2FF', color: '#667EEA', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: '700', fontSize: '14px' }}>
           ← Retour à l'accueil
@@ -221,6 +223,7 @@ export function Contact() {
           </div>
         </div>
       </div>
+      <Footer variant="light" />
     </div>
   );
 }

@@ -58,6 +58,9 @@ export function Nous() {
             <p className={styles.heroDescription}>
               Avant d'être un logiciel, ATS Ultimate a d'abord été un ras-le-bol — celui de perdre le fil de ses recrutements au milieu des piles de CV et de dossiers clients.
             </p>
+            <button className={styles.ctaButton} onClick={() => navigate(ROUTES.REGISTER)}>
+              🚀 Découvrir la plateforme
+            </button>
           </div>
         </div>
       </section>

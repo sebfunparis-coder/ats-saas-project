@@ -6,7 +6,7 @@
 .container {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 3rem 1.5rem;
+  padding: 100px 1.5rem 3rem;
   min-height: calc(100vh - 80px);
   background: linear-gradient(180deg, #FFFFFF 0%, #FCE7F3 25%, #F3E8FF 50%, #E9D5FF 75%, #DDD6FE 100%);
 }

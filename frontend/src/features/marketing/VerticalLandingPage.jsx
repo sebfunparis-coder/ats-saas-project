@@ -19,6 +19,15 @@ export function VerticalLandingPage({ seo, segment, hero, pains, features, testi
 
       {/* HERO */}
       <section className={styles.hero} style={{ background: hero.gradient }}>
+        {['🚀', '⚡', '✨', '🎯'].map((emoji, i) => (
+          <div
+            key={i}
+            className={styles.floatingEmoji}
+            style={{ animationDelay: `${i * 0.5}s`, left: `${12 + i * 22}%`, top: `${20 + (i % 2) * 40}%` }}
+          >
+            {emoji}
+          </div>
+        ))}
         <div className={styles.heroContent}>
           <div className={styles.segment}>{hero.badge}</div>
           <h1 className={styles.heroTitle} dangerouslySetInnerHTML={{ __html: hero.title }} />

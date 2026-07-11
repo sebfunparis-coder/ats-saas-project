@@ -3,8 +3,10 @@
  */
 
 .container {
-  min-height: 100vh;
-  padding: clamp(100px, 15vw, 160px) clamp(20px, 4vw, 60px) clamp(60px, 10vw, 120px);
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 100px 1.5rem 3rem;
+  min-height: calc(100vh - 80px);
   background: linear-gradient(180deg, #F9FAFB 0%, #FFFFFF 50%, #EFF6FF 100%);
 }
 
@@ -16,17 +18,18 @@
 }
 
 .title {
-  font-size: clamp(32px, 6vw, 56px);
-  font-weight: var(--font-weight-black);
-  margin-bottom: var(--spacing-lg);
-  background: linear-gradient(135deg, #667EEA 0%, #FF6B9D 100%);
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 800;
+  margin-bottom: 1rem;
+  line-height: 1.2;
+  background: linear-gradient(135deg, #667EEA 0%, #764BA2 33%, #FF6B9D 66%, #C471F5 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .subtitle {
-  font-size: clamp(16px, 2.5vw, 20px);
+  font-size: clamp(1.1rem, 2.5vw, 1.3rem);
   color: var(--color-gray-600);
   margin-bottom: var(--spacing-2xl);
   line-height: var(--line-height-relaxed);

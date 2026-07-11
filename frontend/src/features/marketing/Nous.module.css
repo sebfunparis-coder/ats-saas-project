@@ -38,7 +38,7 @@
 }
 
 .heroContent {
-  max-width: 800px;
+  max-width: 1200px;
   margin: 0 auto;
   text-align: center;
 }
@@ -54,6 +54,7 @@
 }
 
 .heroTitle {
+  font-family: var(--font-family-display);
   font-size: clamp(28px, 5vw, 56px);
   font-weight: var(--font-weight-black);
   margin-bottom: 24px;

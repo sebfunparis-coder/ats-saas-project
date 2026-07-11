@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { SEO } from '@/shared/components/SEO';
+import { Navbar, Footer } from '@/shared/components/Marketing';
 
 const s = {
   container: { minHeight: '100vh', background: 'linear-gradient(180deg, #F9FAFB 0%, #FFFFFF 100%)', padding: '100px 24px 80px', fontFamily: 'system-ui, sans-serif' },
@@ -60,6 +61,7 @@ export function LegalPage({ title, updated, notice, backTo = '/', path, children
           url={`https://ats-ultimate.com${path}`}
         />
       )}
+      <Navbar />
       <div style={s.inner}>
         <Link to={backTo} style={s.back}>← Retour</Link>
         <h1 style={s.title}>{title}</h1>
@@ -67,6 +69,7 @@ export function LegalPage({ title, updated, notice, backTo = '/', path, children
         {notice && <Notice>{notice}</Notice>}
         {children}
       </div>
+      <Footer variant="light" />
     </div>
   );
 }

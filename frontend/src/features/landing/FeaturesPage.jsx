@@ -23,8 +23,20 @@ export function FeaturesPage() {
       <Navbar activePage="features" />
 
       {/* HERO SECTION */}
-      <section style={{
-        background: 'linear-gradient(135deg, #667EEA 0%, #764BA2 100%)',
+      <style>{`
+        @keyframes featuresHeroGradient {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .featuresHero { animation: none !important; }
+        }
+      `}</style>
+      <section className="featuresHero" style={{
+        background: 'linear-gradient(135deg, #667EEA 0%, #764BA2 50%, #667EEA 100%)',
+        backgroundSize: '200% 200%',
+        animation: 'featuresHeroGradient 8s ease infinite',
         minHeight: '70vh',
         display: 'flex',
         alignItems: 'center',
@@ -44,18 +56,17 @@ export function FeaturesPage() {
           <div style={{
             display: 'inline-block',
             background: 'rgba(255, 255, 255, 0.2)',
-            backdropFilter: 'blur(10px)',
             padding: '12px 24px',
             borderRadius: '50px',
-            marginBottom: '30px',
-            border: '2px solid rgba(255, 255, 255, 0.3)'
+            marginBottom: '24px'
           }}>
-            <span style={{ color: 'white', fontWeight: '600', fontSize: '15px' }}>
+            <span style={{ color: 'white', fontWeight: '700', fontSize: 'clamp(14px, 2vw, 20px)' }}>
               🏆 Plateforme ATS #1 en France
             </span>
           </div>
 
           <h1 style={{
+            fontFamily: 'var(--font-family-display)',
             fontSize: 'clamp(36px, 6vw, 72px)',
             fontWeight: '900',
             color: 'white',
@@ -83,6 +94,32 @@ export function FeaturesPage() {
           }}>
             De l'IA de matching à l'automatisation complète, découvrez comment ATS Ultimate transforme votre recrutement en une expérience fluide et efficace.
           </p>
+
+          <button
+            onClick={() => navigate(ROUTES.REGISTER)}
+            style={{
+              padding: '18px 44px',
+              fontSize: '18px',
+              fontWeight: '800',
+              color: '#764BA2',
+              background: 'white',
+              border: 'none',
+              borderRadius: '16px',
+              cursor: 'pointer',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+              transition: 'all 0.3s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-4px)';
+              e.currentTarget.style.boxShadow = '0 15px 40px rgba(0,0,0,0.3)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 10px 30px rgba(0,0,0,0.2)';
+            }}
+          >
+            🚀 Démarrer gratuitement
+          </button>
 
           {/* Quick metrics */}
           <div style={{
